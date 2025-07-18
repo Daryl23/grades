@@ -23,21 +23,21 @@ const initialData = {
       name: 'Juan Dela Cruz',
       scores: { 'Quiz 1': 18, 'Midterm': 45, 'Final': 85 },
       comment: 'Good progress, keep it up.',
-      totalGrade: 0
+      finalGrade: 0
     },
     {
       id: 's002',
       name: 'Maria Santos',
       scores: { 'Quiz 1': 20, 'Midterm': 48, 'Final': 92 },
       comment: 'Excellent performance!',
-      totalGrade: 0
+      finalGrade: 0
     },
     {
       id: 's003',
       name: 'Pedro Garcia',
       scores: { 'Quiz 1': 15, 'Midterm': 42, 'Final': 78 },
       comment: 'Needs improvement in final exam preparation.',
-      totalGrade: 0
+      finalGrade: 0
     }
   ]
 };
@@ -284,7 +284,7 @@ const InstructorDashboard = ({ user, onLogout }) => {
   const [commentText, setCommentText] = useState('');
 
   // Calculate Final Grade for a student
-  const calculateTotalGrade = (student) => {
+  const calculateFinalGrade = (student) => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
@@ -526,7 +526,7 @@ const StudentDashboard = ({ user, onLogout }) => {
   const currentStudent = data.students.find(s => s.name === user.name);
 
   // Calculate final grade
-  const calculateTotalGrade = (student) => {
+  const calculateFinalGrade = (student) => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
@@ -691,7 +691,7 @@ const StudentDashboard = ({ user, onLogout }) => {
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-900">Final Grade:</span>
               <span className="text-2xl font-bold text-blue-600">
-                {calculateTotalGrade(currentStudent).toFixed(1)}%
+                {calculateFinalGrade(currentStudent).toFixed(1)}%
               </span>
             </div>
           </div>
