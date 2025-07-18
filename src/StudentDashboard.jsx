@@ -157,6 +157,20 @@ const StudentDashboard = ({ user, onLogout }) => {
             My Grades
           </h2>
 
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-semibold text-gray-900">
+                Final Grade:
+              </span>
+              <span className="text-2xl font-bold text-blue-600">
+                {calculateFinalGrade(currentStudent, data.assessments).toFixed(
+                  1
+                )}
+                %
+              </span>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
@@ -176,6 +190,9 @@ const StudentDashboard = ({ user, onLogout }) => {
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
                     Weight
                   </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Weighted Score
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -183,8 +200,12 @@ const StudentDashboard = ({ user, onLogout }) => {
                   const score = currentStudent.scores[assessment.name];
                   const percentage =
                     score !== undefined
-                      ? ((score / assessment.maxScore) * 100).toFixed(1)
+                      ? ((score / assessment.maxScore) * 62.5 + 37.5).toFixed(1)
                       : "-";
+                  const weightedScore = (
+                    percentage *
+                    (assessment.weight / 100)
+                  ).toFixed(2);
 
                   return (
                     <tr key={assessment.name} className="hover:bg-gray-50">
@@ -201,25 +222,12 @@ const StudentDashboard = ({ user, onLogout }) => {
                       <td className="px-4 py-4 text-center">
                         {assessment.weight}%
                       </td>
+                      <td className="px-4 py-4 text-center">{weightedScore}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-900">
-                Final Grade:
-              </span>
-              <span className="text-2xl font-bold text-blue-600">
-                {calculateFinalGrade(currentStudent, data.assessments).toFixed(
-                  1
-                )}
-                %
-              </span>
-            </div>
           </div>
         </div>
 
