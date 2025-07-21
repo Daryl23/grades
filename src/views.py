@@ -5,7 +5,7 @@ import pandas as pd
 from appwrite.client import Client
 from appwrite.services.databases import Databases
 
-client = Client().set_endpoint("https://fra.cloud.appwrite.io/v1").set_project("grading-system").set_key("your-secret-api-key")
+client = Client().set_endpoint("https://fra.cloud.appwrite.io/v1").set_project("grading-system").set_key("DjangoClusteringKey")
 database = Databases(client)
 
 DATABASE_ID = "grading-db"
