@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { AppContext } from "./AppContext";
 import { databases } from "./lib/appwrite";
 import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
-import InstructorHeader from "./components/InstructorHeader";
+import InstructorHeader from "./components/Header";
 
 const StudentDashboard = ({ onLogout }) => {
   const { data, user, getStudentAssessmentsWithScores } =
@@ -12,9 +12,9 @@ const StudentDashboard = ({ onLogout }) => {
   const [sampleScores, setSampleScores] = useState({});
 
   const handleSampleScoreChange = (assessmentId, value) => {
-    setSampleScores(prev => ({
+    setSampleScores((prev) => ({
       ...prev,
-      [assessmentId]: value === '' ? null : Number(value),
+      [assessmentId]: value === "" ? null : Number(value),
     }));
   };
 
@@ -22,8 +22,10 @@ const StudentDashboard = ({ onLogout }) => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
-    assessmentsWithScores.forEach(assessment => {
-      const score = sampleScores[assessment.$id] ?? (assessment.score ? assessment.score.score : null);
+    assessmentsWithScores.forEach((assessment) => {
+      const score =
+        sampleScores[assessment.$id] ??
+        (assessment.score ? assessment.score.score : null);
       if (score !== null) {
         const percentage = (score / assessment.maxScore) * 100;
         totalWeightedScore += percentage * (assessment.weight / 100);
@@ -31,7 +33,9 @@ const StudentDashboard = ({ onLogout }) => {
       }
     });
 
-    return totalWeight > 0 ? (totalWeightedScore / totalWeight).toFixed(2) : "N/A";
+    return totalWeight > 0
+      ? (totalWeightedScore / totalWeight).toFixed(2)
+      : "N/A";
   };
 
   useEffect(() => {
@@ -202,10 +206,7 @@ const StudentDashboard = ({ onLogout }) => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <InstructorHeader
-        user={`${user.firstName} ${user.lastName}`}
-        onLogout={onLogout}
-      />
+      <InstructorHeader user={user} onLogout={onLogout} />
 
       {/* Debug Information */}
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
@@ -394,69 +395,79 @@ const StudentDashboard = ({ onLogout }) => {
       </div>
 
       {/* Grade Calculator Table */}
-<div className="bg-white shadow-md rounded p-4 mb-4">
-  <h3 className="text-xl font-semibold mb-2">Grade Calculator</h3>
-  <p className="text-sm text-gray-600 mb-4">
-    Input sample scores to see your potential final grade.
-  </p>
-  {/* Optional total final grade display */}
-  <div className="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-    <h4 className="font-medium text-blue-800">
-      Potential Final Grade: {calculateSampleGrade()}%
-    </h4>
-  </div>
-  <div className="overflow-x-auto">
-    <table className="min-w-full table-auto border">
-      <thead className="bg-gray-50">
-        <tr>
-          <th className="border px-4 py-2 text-left">Assessment</th>
-          <th className="border px-4 py-2 text-center">Sample Score</th>
-          <th className="border px-4 py-2 text-center">Max Score</th>
-          <th className="border px-4 py-2 text-center">Weight (%)</th>
-          <th className="border px-4 py-2 text-center">Scaled</th>
-          <th className="border px-4 py-2 text-center">Weighted</th>
-        </tr>
-      </thead>
-      <tbody>
-        {assessmentsWithScores.map((assessment) => {
-          const sampleScore = sampleScores[assessment.$id];
-          const weight = assessment.weight || 0;
-          const max = assessment.maxScore || 1;
+      <div className="bg-white shadow-md rounded p-4 mb-4">
+        <h3 className="text-xl font-semibold mb-2">Grade Calculator</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Input sample scores to see your potential final grade.
+        </p>
+        {/* Optional total final grade display */}
+        <div className="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
+          <h4 className="font-medium text-blue-800">
+            Potential Final Grade: {calculateSampleGrade()}%
+          </h4>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto border">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="border px-4 py-2 text-left">Assessment</th>
+                <th className="border px-4 py-2 text-center">Sample Score</th>
+                <th className="border px-4 py-2 text-center">Max Score</th>
+                <th className="border px-4 py-2 text-center">Weight (%)</th>
+                <th className="border px-4 py-2 text-center">Scaled</th>
+                <th className="border px-4 py-2 text-center">Weighted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assessmentsWithScores.map((assessment) => {
+                const sampleScore = sampleScores[assessment.$id];
+                const weight = assessment.weight || 0;
+                const max = assessment.maxScore || 1;
 
-          // Default to 37.5 if no valid sampleScore
-          let scaledScore = 37.5;
-          if (sampleScore !== '' && !isNaN(sampleScore)) {
-            scaledScore = (sampleScore / max) * 62.5 + 37.5;
-          }
+                // Default to 37.5 if no valid sampleScore
+                let scaledScore = 37.5;
+                if (sampleScore !== "" && !isNaN(sampleScore)) {
+                  scaledScore = (sampleScore / max) * 62.5 + 37.5;
+                }
 
-          const weightedScore = scaledScore * (weight / 100);
+                const weightedScore = scaledScore * (weight / 100);
 
-          return (
-            <tr key={assessment.$id} className="hover:bg-gray-50">
-              <td className="border px-4 py-2">{assessment.name}</td>
-              <td className="border px-4 py-2">
-                <input
-                  type="number"
-                  className="w-20 text-center border-gray-300 rounded"
-                  value={sampleScore ?? ''}
-                  onChange={(e) =>
-                    handleSampleScoreChange(assessment.$id, e.target.value)
-                  }
-                  placeholder={assessment.score?.score ?? "N/A"}
-                />
-              </td>
-              <td className="border px-4 py-2 text-center">{assessment.maxScore}</td>
-              <td className="border px-4 py-2 text-center">{assessment.weight}</td>
-              <td className="border px-4 py-2 text-center">{scaledScore.toFixed(2)}%</td>
-              <td className="border px-4 py-2 text-center">{weightedScore.toFixed(2)}%</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-</div>
-
+                return (
+                  <tr key={assessment.$id} className="hover:bg-gray-50">
+                    <td className="border px-4 py-2">{assessment.name}</td>
+                    <td className="border px-4 py-2">
+                      <input
+                        type="number"
+                        className="w-20 text-center border-gray-300 rounded"
+                        value={sampleScore ?? ""}
+                        onChange={(e) =>
+                          handleSampleScoreChange(
+                            assessment.$id,
+                            e.target.value
+                          )
+                        }
+                        placeholder={assessment.score?.score ?? "N/A"}
+                      />
+                    </td>
+                    <td className="border px-4 py-2 text-center">
+                      {assessment.maxScore}
+                    </td>
+                    <td className="border px-4 py-2 text-center">
+                      {assessment.weight}
+                    </td>
+                    <td className="border px-4 py-2 text-center">
+                      {scaledScore.toFixed(2)}%
+                    </td>
+                    <td className="border px-4 py-2 text-center">
+                      {weightedScore.toFixed(2)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Instructor Comments */}
       <div className="bg-white shadow-md rounded p-4">

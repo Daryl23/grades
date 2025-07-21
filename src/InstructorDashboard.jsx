@@ -5,7 +5,7 @@ import AssessmentModal from "./components/AssessmentModal";
 import { databases, account } from "./lib/appwrite"; // adjust path as needed
 import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
 import StudentGradesTable from "./components/StudentGradesTable";
-import InstructorHeader from "./components/InstructorHeader";
+import InstructorHeader from "./components/Header";
 import AssessmentTasks from "./components/AssessmentTasks";
 
 const InstructorDashboard = ({ user, onLogout }) => {
