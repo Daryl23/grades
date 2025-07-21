@@ -60,14 +60,16 @@ const StudentDashboard = ({ onLogout }) => {
       (enroll) => enroll.studentId?.$id === user.$id
     ) || [];
   console.log("3. Student's Enrollments:", studentEnrollments);
+
   // Step 2: Find enrolled class IDs (extract $id from classId object)
-  const enrolledClassIds = studentEnrollments.map((enroll) => enroll.classId);
-  console.log("4. Enrolled Class IDs:", enrolledClassIds);
+  const enrolledClassIds = studentEnrollments.map((enroll) =>
+    typeof enroll.classId === "object" ? enroll.classId?.$id : enroll.classId
+  );
+  console.log("Enrolled Class IDs (normalized):", enrolledClassIds);
 
   // Step 3: Match classes using those IDs
-  const enrolledClasses = data.classes.filter((cls) =>
-    enrolledClassIds.includes(cls.$id)
-  );
+  const enrolledClasses =
+    data.classes?.filter((cls) => enrolledClassIds.includes(cls.$id)) || [];
 
   console.log(
     "5. Enrolled Classes:",
@@ -78,21 +80,20 @@ const StudentDashboard = ({ onLogout }) => {
     }))
   );
 
-  // Step 4: Find assessments by classCode
+  // Step 4: Find assessments by classId (not classCode)
   const studentAssessments = [];
+
   enrolledClasses.forEach((cls) => {
-    console.log(
-      `6. Looking for assessments with classCode: "${cls.classCode}"`
-    );
+    console.log(`6. Looking for assessments for classId: "${cls.$id}"`);
 
     const classAssessments =
       data.assessments?.filter(
-        (assessment) => assessment.classCode === cls.classCode
+        (assessment) => assessment.classId?.$id === cls.$id
       ) || [];
 
     console.log(
       `   - Found ${classAssessments.length} assessments:`,
-      classAssessments.map((a) => ({ name: a.name, classCode: a.classCode }))
+      classAssessments.map((a) => ({ name: a.name, classId: a.classId }))
     );
 
     classAssessments.forEach((assessment) => {
@@ -103,6 +104,7 @@ const StudentDashboard = ({ onLogout }) => {
       studentAssessments.push({
         ...assessment,
         className: cls.title || cls.name || cls.classCode,
+        classCode: cls.classCode, // Add classCode from the class
         scoreEntry,
         hasScore: !!scoreEntry,
         percentage:
@@ -139,10 +141,10 @@ const StudentDashboard = ({ onLogout }) => {
 
   console.log("=== END DEBUG ===");
 
-  // Use the helper function from AppContext (if available) or manual calculation
+  // Use the calculated studentAssessments or helper function from AppContext
   const assessmentsWithScores = getStudentAssessmentsWithScores
     ? getStudentAssessmentsWithScores(user.$id)
-    : [];
+    : studentAssessments;
 
   // Calculate overall grade
   const calculateOverallGrade = () => {
@@ -161,8 +163,9 @@ const StudentDashboard = ({ onLogout }) => {
     gradedAssessments.forEach((assessment) => {
       const percentage =
         (assessment.scoreEntry.score / assessment.maxScore) * 100;
-      totalWeightedScore += percentage * (assessment.weight / 100);
-      totalWeight += assessment.weight / 100;
+      const weight = assessment.weight || 0;
+      totalWeightedScore += percentage * (weight / 100);
+      totalWeight += weight / 100;
     });
 
     return totalWeight > 0
@@ -191,7 +194,6 @@ const StudentDashboard = ({ onLogout }) => {
             Student's Enrollments: {studentEnrollments.length}{" "}
             {enrolledClassIds.join(", ")}
           </p>
-
           <p>Enrolled Classes: {enrolledClasses.length}</p>
           <p>Found Assessments: {assessmentsWithScores.length}</p>
           <p>Enrolled Class Codes: {enrolledClassCodes.join(", ") || "None"}</p>
@@ -276,50 +278,56 @@ const StudentDashboard = ({ onLogout }) => {
                   <th className="border px-4 py-2 text-center">Score</th>
                   <th className="border px-4 py-2 text-center">Max Score</th>
                   <th className="border px-4 py-2 text-center">Weight (%)</th>
-                  <th className="border px-4 py-2 text-center">Percentage</th>
-                  <th className="border px-4 py-2 text-center">Class</th>
-                  <th className="border px-4 py-2 text-center">Status</th>
+                  <th className="border px-4 py-2 text-center">Scaled</th>
+                  <th className="border px-4 py-2 text-center bg-blue-100">
+                    Weighted
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {assessmentsWithScores.map((assessment) => {
                   const isGraded =
                     assessment.hasScore &&
-                    assessment.score &&
-                    assessment.score.score !== null &&
-                    assessment.score.score !== undefined;
+                    assessment.scoreEntry &&
+                    assessment.scoreEntry.score !== null &&
+                    assessment.scoreEntry.score !== undefined;
 
                   return (
                     <tr key={assessment.$id} className="hover:bg-gray-50">
                       <td className="border px-4 py-2">{assessment.name}</td>
                       <td className="border px-4 py-2 text-center">
-                        {isGraded ? assessment.score.score : "—"}
+                        {isGraded ? assessment.scoreEntry.score : "—"}
                       </td>
                       <td className="border px-4 py-2 text-center">
                         {assessment.maxScore}
                       </td>
                       <td className="border px-4 py-2 text-center">
-                        {assessment.weight}
+                        {assessment.weight || 0}
                       </td>
-                      <td className="border px-4 py-2 text-center font-medium">
-                        {assessment.percentage
-                          ? `${assessment.percentage}%`
-                          : "—"}
-                      </td>
-                      <td className="border px-4 py-2 text-center">
-                        {assessment.classCode}
-                      </td>
-                      <td className="border px-4 py-2 text-center">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            isGraded
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {isGraded ? "Graded" : "Pending"}
-                        </span>
-                      </td>
+
+                      {(() => {
+                        const weight = assessment.weight || 0;
+                        const raw = assessment.scoreEntry?.score;
+                        const max = assessment.maxScore;
+
+                        let scaledScore = 37.5;
+                        if (isGraded && raw != null && max) {
+                          scaledScore = (raw / max) * 62.5 + 37.5;
+                        }
+
+                        const weighted = scaledScore * (weight / 100);
+
+                        return (
+                          <>
+                            <td className="border px-4 py-2 text-center font-medium">
+                              {scaledScore.toFixed(2)}
+                            </td>
+                            <td className="border px-4 py-2 text-center font-medium text-blue-600">
+                              {weighted.toFixed(2)}%
+                            </td>
+                          </>
+                        );
+                      })()}
                     </tr>
                   );
                 })}
@@ -370,7 +378,11 @@ const StudentDashboard = ({ onLogout }) => {
               .filter((enroll) => enroll.comment)
               .map((enroll, index) => {
                 const relatedClass = enrolledClasses.find(
-                  (cls) => cls.$id === enroll.classId
+                  (cls) =>
+                    cls.$id ===
+                    (typeof enroll.classId === "object"
+                      ? enroll.classId.$id
+                      : enroll.classId)
                 );
                 const classCode = relatedClass?.classCode || "Unknown";
 

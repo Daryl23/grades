@@ -312,39 +312,137 @@ export const AppProvider = ({ children }) => {
   };
 
   // NEW: Helper to get all assessments for a student with full details
+  // NEW: Helper to get all assessments for a student with full details
   const getStudentAssessmentsWithScores = (studentId) => {
-    // Get student's enrollments
-    const enrollments = data.classEnrollments.filter(
-      (enrollment) => enrollment.studentId === studentId
+    console.log("=== getStudentAssessmentsWithScores DEBUG ===");
+    console.log("1. Student ID:", studentId);
+    console.log("2. Available data:", {
+      classEnrollments: data.classEnrollments?.length || 0,
+      classes: data.classes?.length || 0,
+      assessments: data.assessments?.length || 0,
+      scores: data.scores?.length || 0,
+    });
+
+    // Get student's enrollments - FIX: Handle object vs string studentId + null safety
+    const enrollments =
+      data.classEnrollments?.filter((enrollment) => {
+        // Add null safety check
+        if (!enrollment.studentId) return false;
+
+        const enrollmentStudentId =
+          typeof enrollment.studentId === "object"
+            ? enrollment.studentId?.$id
+            : enrollment.studentId;
+
+        // Additional null check after extraction
+        if (!enrollmentStudentId) return false;
+
+        return enrollmentStudentId === studentId;
+      }) || [];
+
+    console.log("3. Found enrollments:", enrollments.length);
+    console.log(
+      "4. Enrollment details:",
+      enrollments.map((e) => ({
+        studentId:
+          typeof e.studentId === "object" ? e.studentId.$id : e.studentId,
+        classId: typeof e.classId === "object" ? e.classId.$id : e.classId,
+      }))
     );
 
-    // Get enrolled class IDs
-    const enrolledClassIds = enrollments.map((enroll) => enroll.classId);
+    // Get enrolled class IDs - FIX: Handle object vs string classId + null safety
+    const enrolledClassIds = enrollments
+      .map((enroll) => {
+        if (!enroll.classId) return null;
+        return typeof enroll.classId === "object"
+          ? enroll.classId?.$id
+          : enroll.classId;
+      })
+      .filter(Boolean); // Remove null/undefined values
 
-    // Get all assessments for enrolled classes
-    const assessments = data.assessments.filter((assessment) =>
-      enrolledClassIds.includes(assessment.classId)
+    console.log("5. Enrolled class IDs:", enrolledClassIds);
+
+    // Get all assessments for enrolled classes - FIX: Handle object vs string assessment.classId + null safety
+    const assessments =
+      data.assessments?.filter((assessment) => {
+        if (!assessment.classId) return false;
+
+        const assessmentClassId =
+          typeof assessment.classId === "object"
+            ? assessment.classId?.$id
+            : assessment.classId;
+
+        if (!assessmentClassId) return false;
+
+        return enrolledClassIds.includes(assessmentClassId);
+      }) || [];
+
+    console.log("6. Found assessments:", assessments.length);
+    console.log(
+      "7. Assessment details:",
+      assessments.map((a) => ({
+        name: a.name,
+        classId: typeof a.classId === "object" ? a.classId.$id : a.classId,
+        id: a.$id,
+      }))
     );
 
     // For each assessment, find the student's score
-    return assessments.map((assessment) => {
-      const score = data.scores.find(
-        (s) => s.studentId === studentId && s.assessmentId === assessment.$id
-      );
-      // Find class for this assessment
-      const cls = data.classes.find((c) => c.$id === assessment.classId);
-      return {
+    const result = assessments.map((assessment) => {
+      const score = data.scores?.find((s) => {
+        // Add null safety checks
+        if (!s.studentId || !s.assessmentId) return false;
+
+        const scoreStudentId =
+          typeof s.studentId === "object" ? s.studentId?.$id : s.studentId;
+        const scoreAssessmentId =
+          typeof s.assessmentId === "object"
+            ? s.assessmentId?.$id
+            : s.assessmentId;
+
+        // Additional null checks after extraction
+        if (!scoreStudentId || !scoreAssessmentId) return false;
+
+        return (
+          scoreStudentId === studentId && scoreAssessmentId === assessment.$id
+        );
+      });
+
+      // Find class for this assessment - Add null safety
+      const assessmentClassId =
+        typeof assessment.classId === "object"
+          ? assessment.classId?.$id
+          : assessment.classId;
+      const cls = assessmentClassId
+        ? data.classes?.find((c) => c.$id === assessmentClassId)
+        : null;
+
+      const result = {
         ...assessment,
-        className: cls ? cls.title || cls.name || cls.classCode : '',
-        classCode: cls ? cls.classCode : '',
-        score: score || null,
+        className: cls ? cls.title || cls.name || cls.classCode : "",
+        classCode: cls ? cls.classCode : "",
+        scoreEntry: score || null, // Use scoreEntry to match your StudentDashboard
         hasScore: !!score,
         percentage:
           score && score.score !== null && score.score !== undefined
             ? ((score.score / assessment.maxScore) * 100).toFixed(1)
             : null,
       };
+
+      console.log(`8. Assessment "${assessment.name}":`, {
+        classId: assessmentClassId,
+        className: result.className,
+        hasScore: result.hasScore,
+        score: score?.score,
+      });
+
+      return result;
     });
+
+    console.log("9. Final result count:", result.length);
+    console.log("=== END getStudentAssessmentsWithScores DEBUG ===");
+
+    return result;
   };
 
   return (
