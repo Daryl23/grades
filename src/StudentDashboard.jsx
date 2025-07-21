@@ -4,7 +4,7 @@ import { databases } from "./lib/appwrite";
 import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
 import InstructorHeader from "./components/InstructorHeader";
 
-const StudentDashboard = (onLogout) => {
+const StudentDashboard = ({ onLogout }) => {
   const { data, user, getStudentAssessmentsWithScores } =
     useContext(AppContext);
   const [scores, setScores] = useState([]);
@@ -65,7 +65,9 @@ const StudentDashboard = (onLogout) => {
   console.log("4. Enrolled Class IDs:", enrolledClassIds);
 
   // Step 3: Match classes using those IDs
-  const enrolledClasses = data.classes.filter((cls) => enrolledClassIds.includes(cls.$id));
+  const enrolledClasses = data.classes.filter((cls) =>
+    enrolledClassIds.includes(cls.$id)
+  );
 
   console.log(
     "5. Enrolled Classes:",
@@ -173,8 +175,10 @@ const StudentDashboard = (onLogout) => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-  
-      <InstructorHeader user={`${user.firstName} ${user.lastName}`} onLogout={onLogout} />
+      <InstructorHeader
+        user={`${user.firstName} ${user.lastName}`}
+        onLogout={onLogout}
+      />
 
       {/* Debug Information */}
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">

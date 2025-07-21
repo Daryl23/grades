@@ -119,20 +119,30 @@ const InstructorDashboard = ({ user, onLogout }) => {
   useEffect(() => {
     // Always call the effect, but only run the logic when conditions are met
     if (selectedClassCode && data && data.classes && data.classEnrollments) {
-      const selectedClass = data.classes.find((cls) => cls.classCode === selectedClassCode);
+      const selectedClass = data.classes.find(
+        (cls) => cls.classCode === selectedClassCode
+      );
       console.log("=== INSTRUCTOR DASHBOARD DEBUG ===");
       console.log("Selected Class Code:", selectedClassCode);
       console.log("Selected Class:", selectedClass);
-      const enrollments = data.classEnrollments.filter((e) => e.classId === (selectedClass ? selectedClass.$id : undefined));
+      const enrollments = data.classEnrollments.filter(
+        (e) => e.classId === (selectedClass ? selectedClass.$id : undefined)
+      );
       console.log("Enrollments for class:", enrollments);
       const enrolledStudentIds = enrollments.map((e) => e.studentId);
       console.log("Enrolled Student IDs:", enrolledStudentIds);
-      const enrolledStudents = data.students.filter((s) => enrolledStudentIds.includes(s.$id));
+      const enrolledStudents = data.students.filter((s) =>
+        enrolledStudentIds.includes(s.$id)
+      );
       console.log("Enrolled Students:", enrolledStudents);
-      const classAssessments = data.assessments.filter((a) => a.classId === (selectedClass ? selectedClass.$id : undefined));
+      const classAssessments = data.assessments.filter(
+        (a) => a.classId === (selectedClass ? selectedClass.$id : undefined)
+      );
       console.log("Assessments for class:", classAssessments);
       const classAssessmentIds = classAssessments.map((a) => a.$id);
-      const classScores = scores.filter((score) => classAssessmentIds.includes(score.assessmentId));
+      const classScores = scores.filter((score) =>
+        classAssessmentIds.includes(score.assessmentId)
+      );
       console.log("Scores for class assessments:", classScores);
       console.log("=== END DEBUG ===");
     }
@@ -206,9 +216,11 @@ const InstructorDashboard = ({ user, onLogout }) => {
         COLLECTIONS.ASSESSMENTS,
         assessment.$id
       );
-      
+
       // Delete associated scores
-      const assessmentScores = scores.filter(s => s.assessmentId === assessmentId);
+      const assessmentScores = scores.filter(
+        (s) => s.assessmentId === assessmentId
+      );
       for (const score of assessmentScores) {
         try {
           await databases.deleteDocument(
@@ -225,9 +237,9 @@ const InstructorDashboard = ({ user, onLogout }) => {
         ...prev,
         assessments: prev.assessments.filter((a) => a.$id !== assessment.$id),
       }));
-      
-      setScores(prev => prev.filter(s => s.assessmentId !== assessmentId));
-      
+
+      setScores((prev) => prev.filter((s) => s.assessmentId !== assessmentId));
+
       setSnackbar({
         open: true,
         message: "Assessment deleted successfully!",
@@ -349,18 +361,26 @@ const InstructorDashboard = ({ user, onLogout }) => {
   };
 
   // Helper to get student score for a specific assessment
-    const getStudentScore = (studentId, assessmentId) => {
-      const score = scores.find((s) => {
-        const sStudentId = typeof s.studentId === "object" ? s.studentId?.$id : s.studentId;
-        const sAssessmentId = typeof s.assessmentId === "object" ? s.assessmentId?.$id : s.assessmentId;
-        const match = sStudentId === studentId && sAssessmentId === assessmentId;
-        if (match) {
-          console.log("✅ Score Match:", { sStudentId, sAssessmentId, score: s.score });
-        }
-        return match;
-      });
-      return score ? score.score : 0;
-    };
+  const getStudentScore = (studentId, assessmentId) => {
+    const score = scores.find((s) => {
+      const sStudentId =
+        typeof s.studentId === "object" ? s.studentId?.$id : s.studentId;
+      const sAssessmentId =
+        typeof s.assessmentId === "object"
+          ? s.assessmentId?.$id
+          : s.assessmentId;
+      const match = sStudentId === studentId && sAssessmentId === assessmentId;
+      if (match) {
+        console.log("✅ Score Match:", {
+          sStudentId,
+          sAssessmentId,
+          score: s.score,
+        });
+      }
+      return match;
+    });
+    return score ? score.score : 0;
+  };
 
   // Add new student
   const handleAddStudent = async () => {
@@ -409,8 +429,8 @@ const InstructorDashboard = ({ user, onLogout }) => {
     let aValue, bValue;
 
     if (key === "name") {
-      aValue = `${a.lastName || ''}, ${a.firstName || ''}`.toLowerCase();
-      bValue = `${b.lastName || ''}, ${b.firstName || ''}`.toLowerCase();
+      aValue = `${a.lastName || ""}, ${a.firstName || ""}`.toLowerCase();
+      bValue = `${b.lastName || ""}, ${b.firstName || ""}`.toLowerCase();
     } else if (key === "final") {
       // Calculate final grade based on scores and assessments
       aValue = calculateFinalGrade(a, data.assessments, scores);
@@ -444,17 +464,25 @@ const InstructorDashboard = ({ user, onLogout }) => {
     );
 
   // Determine enrolled students for the selected class
-  const selectedClass = data.classes?.find((cls) => cls.classCode === selectedClassCode);
-  const enrollments = data.classEnrollments?.filter(
-    (e) => e.classId === (selectedClass ? selectedClass.$id : undefined)
-  ) || [];
+  const selectedClass = data.classes?.find(
+    (cls) => cls.classCode === selectedClassCode
+  );
+  const enrollments =
+    data.classEnrollments?.filter(
+      (e) => e.classId === (selectedClass ? selectedClass.$id : undefined)
+    ) || [];
   const enrolledStudentIds = enrollments.map((e) => e.studentId);
-  const enrolledStudents = data.students.filter((s) => enrolledStudentIds.includes(s.$id));
+  const enrolledStudents = data.students.filter((s) =>
+    enrolledStudentIds.includes(s.$id)
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <InstructorHeader user={user} onLogout={onLogout} />
+      <InstructorHeader
+        user={`${user.firstName} ${user.lastName}`}
+        onLogout={onLogout}
+      />
 
       {/* Main Content */}
       <div className="max-w-8xl mx-auto px-2 sm:px-2 lg:px-4 py-2">
@@ -487,7 +515,7 @@ const InstructorDashboard = ({ user, onLogout }) => {
             getStudentScore={getStudentScore}
             setStudentModal={setStudentModal}
           />
-          
+
           {/* Assessment Tasks - right */}
           <AssessmentTasks
             assessments={data.assessments}
@@ -522,7 +550,9 @@ const InstructorDashboard = ({ user, onLogout }) => {
                 <input
                   type="text"
                   value={newStudent.id}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, id: e.target.value }))}
+                  onChange={(e) =>
+                    setNewStudent((prev) => ({ ...prev, id: e.target.value }))
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter student ID"
                 />
@@ -534,7 +564,9 @@ const InstructorDashboard = ({ user, onLogout }) => {
                 <input
                   type="text"
                   value={newStudent.name}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) =>
+                    setNewStudent((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter student name"
                 />
