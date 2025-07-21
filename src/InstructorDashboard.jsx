@@ -5,7 +5,7 @@ import AssessmentModal from "./components/AssessmentModal";
 import { databases, account } from "./lib/appwrite"; // adjust path as needed
 import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
 import StudentGradesTable from "./components/StudentGradesTable";
-import InstructorHeader from "./components/Header";
+import Header from "./components/Header";
 import AssessmentTasks from "./components/AssessmentTasks";
 
 const InstructorDashboard = ({ user, onLogout }) => {
@@ -479,10 +479,7 @@ const InstructorDashboard = ({ user, onLogout }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <InstructorHeader
-        user={`${user.firstName} ${user.lastName}`}
-        onLogout={onLogout}
-      />
+      <Header user={`${user.firstName} ${user.lastName}`} onLogout={onLogout} />
 
       {/* Main Content */}
       <div className="max-w-8xl mx-auto px-2 sm:px-2 lg:px-4 py-2">

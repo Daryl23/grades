@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { account, databases, teams, IDHelper } from "../lib/appwrite";
 import { COLLECTIONS, DATABASE_ID, TEAM_ID } from "../lib/constants";
 import { Permission, Role } from "appwrite";
-import { X } from "lucide-react";
+import RegisterModal from "./RegisterModal";
 
 const LoginForm = () => {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -232,7 +232,7 @@ const LoginForm = () => {
             <button
               type="button"
               onClick={handleForgotPassword} // Define this function
-              className="text-blue-600 hover:underline"
+              className="text-red-600 hover:underline"
             >
               Forgot password?
             </button>
@@ -240,7 +240,7 @@ const LoginForm = () => {
         </div>
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+          className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700"
         >
           Login
         </button>
@@ -250,102 +250,21 @@ const LoginForm = () => {
         Don't have an account?{" "}
         <button
           onClick={() => setShowRegister(true)}
-          className="text-blue-600 hover:underline"
+          className="text-red-600 hover:underline"
         >
           Register
         </button>
       </p>
 
-      {/* Register Modal */}
-      {showRegister && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-lg p-6 w-full max-w-2xl relative overflow-y-auto max-h-[90vh]">
-            <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-              onClick={() => setShowRegister(false)}
-            >
-              <X />
-            </button>
-            <h2 className="text-xl font-bold mb-4">Register</h2>
-
-            <form
-              onSubmit={handleRegisterSubmit}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-              {[
-                { label: "Email", key: "email" },
-                { label: "SR Code", key: "srCode" },
-                { label: "First Name", key: "firstName" },
-                { label: "Last Name", key: "lastName" },
-                { label: "Class Code", key: "classCode" },
-              ].map(({ label, key }) => (
-                <div key={key} className="col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {label}
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full border px-3 py-2 rounded"
-                    value={registerForm[key]}
-                    onChange={(e) => handleRegisterChange(key, e.target.value)}
-                    required
-                  />
-                </div>
-              ))}
-
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  className="w-full border px-3 py-2 rounded"
-                  value={registerForm.password}
-                  onChange={(e) =>
-                    handleRegisterChange("password", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  className="w-full border px-3 py-2 rounded"
-                  value={registerForm.confirmPassword}
-                  onChange={(e) =>
-                    handleRegisterChange("confirmPassword", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              {registerError && (
-                <div className="col-span-2 bg-red-100 border border-red-300 text-red-800 px-4 py-2 rounded">
-                  {registerError}
-                </div>
-              )}
-              {registerSuccess && (
-                <div className="col-span-2 bg-green-100 border border-green-300 text-green-800 px-4 py-2 rounded">
-                  {registerSuccess}
-                </div>
-              )}
-
-              <div className="col-span-2">
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  Register
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <RegisterModal
+        showRegister={showRegister}
+        setShowRegister={setShowRegister}
+        registerForm={registerForm}
+        registerError={registerError}
+        registerSuccess={registerSuccess}
+        handleRegisterChange={handleRegisterChange}
+        handleRegisterSubmit={handleRegisterSubmit}
+      />
     </div>
   );
 };
