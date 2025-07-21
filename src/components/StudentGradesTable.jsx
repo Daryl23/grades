@@ -24,7 +24,6 @@ const StudentGradesTable = ({
   handleCommentSave,
   startEditComment,
   calculateFinalGrade,
-  scores,
   getStudentScore, // ✅ Injected
   setStudentModal,
 }) => {
@@ -55,7 +54,9 @@ const StudentGradesTable = ({
                   onClick={() => handleSort(assessment.name)}
                 >
                   {assessment.name}
-                  <div className="text-xs text-gray-500">/{assessment.maxScore}</div>
+                  <div className="text-xs text-gray-500">
+                    /{assessment.maxScore}
+                  </div>
                   {sortConfig.key === assessment.name &&
                     (sortConfig.direction === "asc" ? " ▲" : " ▼")}
                 </th>
@@ -84,7 +85,10 @@ const StudentGradesTable = ({
                     editingScore.studentId === student.$id &&
                     editingScore.assessmentId === assessment.$id;
 
-                  const currentScore = getStudentScore(student.$id, assessment.$id); // ✅ Use helper
+                  const currentScore = getStudentScore(
+                    student.$id,
+                    assessment.$id
+                  ); // ✅ Use helper
 
                   return (
                     <td key={assessment.$id} className="text-center">
@@ -97,18 +101,38 @@ const StudentGradesTable = ({
                           max={assessment.maxScore}
                           onChange={(e) => setScoreInput(e.target.value)}
                           onBlur={() => {
-                            handleScoreSave(student.$id, assessment.$id, scoreInput);
-                            setEditingScore({ studentId: null, assessmentId: null });
-                            setSavedScore({ studentId: student.$id, assessmentId: assessment.$id });
+                            handleScoreSave(
+                              student.$id,
+                              assessment.$id,
+                              scoreInput
+                            );
+                            setEditingScore({
+                              studentId: null,
+                              assessmentId: null,
+                            });
+                            setSavedScore({
+                              studentId: student.$id,
+                              assessmentId: assessment.$id,
+                            });
                             setTimeout(() => {
-                              setSavedScore({ studentId: null, assessmentId: null });
+                              setSavedScore({
+                                studentId: null,
+                                assessmentId: null,
+                              });
                             }, 2000);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === "Tab") {
                               e.preventDefault();
-                              handleScoreSave(student.$id, assessment.$id, scoreInput);
-                              const currentIdx = findScoreCellIndex(student.$id, assessment.$id); // 🛠️ fixed from `assessment.name`
+                              handleScoreSave(
+                                student.$id,
+                                assessment.$id,
+                                scoreInput
+                              );
+                              const currentIdx = findScoreCellIndex(
+                                student.$id,
+                                assessment.$id
+                              ); // 🛠️ fixed from `assessment.name`
                               const nextIdx = e.shiftKey
                                 ? currentIdx > 0
                                   ? currentIdx - 1
@@ -119,10 +143,18 @@ const StudentGradesTable = ({
                               const nextCell = scoreCellPositions[nextIdx];
                               setTimeout(() => {
                                 setEditingScore(nextCell);
-                                setScoreInput(getStudentScore(nextCell.studentId, nextCell.assessmentId) || "");
+                                setScoreInput(
+                                  getStudentScore(
+                                    nextCell.studentId,
+                                    nextCell.assessmentId
+                                  ) || ""
+                                );
                               }, 0);
                             } else if (e.key === "Escape") {
-                              setEditingScore({ studentId: null, assessmentId: null });
+                              setEditingScore({
+                                studentId: null,
+                                assessmentId: null,
+                              });
                             }
                           }}
                           className="w-10 px-1 py-1 text-sm border rounded text-center"
@@ -156,7 +188,13 @@ const StudentGradesTable = ({
                 })}
 
                 <td className="text-center font-medium">
-                  {calculateFinalGrade(student, data.assessments, scores).toFixed(1)}%
+                  {(() => {
+                    const grade = calculateFinalGrade(
+                      student,
+                      data.assessments
+                    );
+                    return `${grade.toFixed(1)}%`;
+                  })()}
                 </td>
 
                 <td className="text-left">

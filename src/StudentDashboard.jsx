@@ -221,7 +221,7 @@ const StudentDashboard = ({ onLogout }) => {
               {enrolledClassCodes.join(", ") || "None"}
             </p>
             <p>
-              <strong>Overall Grade:</strong> {calculateOverallGrade()}%
+              <strong>Final Grade:</strong> {calculateOverallGrade()}%
             </p>
           </div>
         </div>

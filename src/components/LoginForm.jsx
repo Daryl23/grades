@@ -103,41 +103,60 @@ const LoginForm = () => {
       );
       const user = await account.get();
 
-      // Create student document
-      const studentDoc = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.STUDENTS,
-        IDHelper.unique(),
-        {
-          email: registerForm.email,
-          srCode: registerForm.srCode,
-          firstName: registerForm.firstName,
-          lastName: registerForm.lastName,
-          authId: authResponse.$id,
-        },
-        [
-          Permission.read(Role.user(user.$id)),
-          Permission.write(Role.user(user.$id)),
-        ]
-      );
+      let studentDoc;
 
-      // Create class enrollment using the found classId
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.CLASS_ENROLLMENTS,
-        IDHelper.unique(),
-        {
-          studentId: studentDoc.$id,
-          classId: classDoc.$id, // Use the actual class document ID
-          status: "pending",
-          dateJoined: new Date().toISOString(),
-          comment: "",
-        },
-        [
-          Permission.read(Role.user(user.$id)),
-          Permission.write(Role.user(user.$id)),
-        ]
-      );
+      try {
+        studentDoc = await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.STUDENTS,
+          IDHelper.unique(),
+          {
+            email: registerForm.email,
+            srCode: registerForm.srCode,
+            firstName: registerForm.firstName,
+            lastName: registerForm.lastName,
+            authId: authResponse.$id,
+          },
+          [
+            Permission.read(Role.user(user.$id)),
+            Permission.write(Role.user(user.$id)),
+          ]
+        );
+      } catch (err) {
+        console.error("❌ Failed to create student document:", err);
+        setRegisterError("Failed to create student document.");
+        return;
+      }
+
+      try {
+        await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.CLASS_ENROLLMENTS,
+          IDHelper.unique(),
+          {
+            studentId: studentDoc.$id,
+            classId: classDoc.$id,
+            classCode: classDoc.classCode,
+            status: "pending",
+            dateJoined: new Date().toISOString(),
+            comment: "",
+          },
+          [
+            Permission.read(Role.user(user.$id)),
+            Permission.write(Role.user(user.$id)),
+          ]
+        );
+      } catch (err) {
+        console.error("❌ Failed to create class enrollment:", err);
+        setRegisterError("Failed to enroll in class. Please contact support.");
+        console.log("📦 Creating class enrollment with data:", {
+          studentId: studentDoc?.$id,
+          classId: classDoc?.$id,
+          studentDoc,
+          classDoc,
+        });
+        return;
+      }
 
       // Create team membership (optional)
       try {

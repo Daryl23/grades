@@ -511,7 +511,6 @@ const InstructorDashboard = ({ user, onLogout }) => {
             handleCommentSave={handleCommentSave}
             startEditComment={startEditComment}
             calculateFinalGrade={calculateFinalGrade}
-            scores={scores}
             getStudentScore={getStudentScore}
             setStudentModal={setStudentModal}
           />
