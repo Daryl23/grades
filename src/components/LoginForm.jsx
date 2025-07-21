@@ -3,6 +3,14 @@ import { account, databases, teams, IDHelper } from "../lib/appwrite";
 import { COLLECTIONS, DATABASE_ID, TEAM_ID } from "../lib/constants";
 import { Permission, Role } from "appwrite";
 import RegisterModal from "./RegisterModal";
+import { LogIn } from "lucide-react";
+
+const LoginParagraph = () => (
+  <p className="text-gray-700 text-sm flex items-center gap-1">
+    <LogIn size={16} className="inline-block text-blue-600" />
+    Please login to continue accessing your dashboard.
+  </p>
+);
 
 const LoginForm = () => {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -199,20 +207,22 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 mt-10">
-      <h2 className="text-xl font-bold mb-4">Login</h2>
-
+    <div className="max-w-md mx-auto p-4 mt-10 border shadow-lg bg-gray-50 rounded-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <LogIn size={20} className="text-red-600" />
+        <h2 className="text-xl font-bold">Login</h2>
+      </div>
       {verificationMessage && (
         <div className="mb-4 text-sm p-2 bg-blue-100 border border-blue-300 rounded text-blue-800">
           {verificationMessage}
         </div>
       )}
-
       <form onSubmit={handleLoginSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Email</label>
           <input
             type="email"
+            placeholder="Email"
             className="w-full border px-3 py-2 rounded"
             value={loginForm.email}
             onChange={(e) => handleLoginChange("email", e.target.value)}
@@ -223,6 +233,7 @@ const LoginForm = () => {
           <label className="block text-sm font-medium mb-1">Password</label>
           <input
             type="password"
+            placeholder="Password"
             className="w-full border px-3 py-2 rounded"
             value={loginForm.password}
             onChange={(e) => handleLoginChange("password", e.target.value)}
@@ -245,7 +256,6 @@ const LoginForm = () => {
           Login
         </button>
       </form>
-
       <p className="mt-4 text-sm text-center">
         Don't have an account?{" "}
         <button
@@ -255,7 +265,6 @@ const LoginForm = () => {
           Register
         </button>
       </p>
-
       <RegisterModal
         showRegister={showRegister}
         setShowRegister={setShowRegister}

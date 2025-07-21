@@ -208,24 +208,23 @@ const StudentDashboard = ({ onLogout }) => {
 
   // Calculate overall grade
   const calculateOverallGrade = () => {
-    const gradedAssessments = assessmentsWithScores.filter(
-      (a) =>
-        a.hasScore &&
-        a.scoreEntry?.score !== null &&
-        a.scoreEntry?.score !== undefined
-    );
-
-    if (gradedAssessments.length === 0) return "N/A";
+    if (!assessmentsWithScores || assessmentsWithScores.length === 0)
+      return "N/A";
 
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
-    gradedAssessments.forEach((assessment) => {
-      const percentage =
-        (assessment.scoreEntry.score / assessment.maxScore) * 100;
-      const weight = assessment.weight || 0;
-      totalWeightedScore += percentage * (weight / 100);
-      totalWeight += weight / 100;
+    assessmentsWithScores.forEach((assessment) => {
+      const score = assessment?.scoreEntry?.score ?? 0; // Treat null/undefined as 0
+      const maxScore = assessment?.maxScore || 0;
+      const weight = assessment?.weight || 0;
+
+      // Avoid invalid calculations
+      if (maxScore > 0 && weight > 0) {
+        const percentage = (score / maxScore) * 100;
+        totalWeightedScore += percentage * (weight / 100);
+        totalWeight += weight / 100;
+      }
     });
 
     return totalWeight > 0
@@ -236,59 +235,35 @@ const StudentDashboard = ({ onLogout }) => {
   // Get enrolled class codes for display
   const enrolledClassCodes = enrolledClasses.map((cls) => cls.classCode);
 
+  const getGradeColor = (grade) => {
+    if (grade < 70) return "#000000"; // Failure - Black
+    if (grade < 75) return "#EF4444"; // Borderline fail - Red (tailwind red-500)
+    if (grade < 83) return "#F59E0B"; // Satisfactory to Good - Yellow (amber-500)
+    if (grade < 90) return "#FACC15"; // Very Good - Yellow (yellow-400)
+    return "#10B981"; // Excellent & Superior - Green (emerald-500)
+  };
+
+  const mapGradeDescriptor = (percent) => {
+    if (percent >= 98) return "1";
+    if (percent >= 94) return "1.25";
+    if (percent >= 90) return "1.50";
+    if (percent >= 88) return "1.75";
+    if (percent >= 85) return "2.00";
+    if (percent >= 83) return "2.25";
+    if (percent >= 80) return "2.50";
+    if (percent >= 78) return "2.75";
+    if (percent >= 75) return "3.00";
+    if (percent < 70) return "5.00";
+    return "Incomplete";
+  };
+
   return (
     <MainLayout user={user} onLogout={onLogout}>
-      {/* Debug Information - Collapsible */}
-      <div className="bg-yellow-100 border-l-4 border-yellow-400 rounded-lg p-4 mb-6">
-        <details>
-          <summary className="font-medium text-yellow-800 cursor-pointer hover:text-yellow-900 transition">
-            🐛 Debug Information (Click to expand)
-          </summary>
-          <div className="text-sm text-yellow-700 space-y-2 mt-4 bg-white p-4 rounded">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p>
-                  <strong>User ID:</strong> {user.$id}
-                </p>
-                <p>
-                  <strong>Classes in DB:</strong> {data.classes?.length || 0}
-                </p>
-                <p>
-                  <strong>Assessments in DB:</strong>{" "}
-                  {data.assessments?.length || 0}
-                </p>
-                <p>
-                  <strong>Student's Enrollments:</strong>{" "}
-                  {studentEnrollments.length}
-                </p>
-              </div>
-              <div>
-                <p>
-                  <strong>Enrolled Classes:</strong> {enrolledClasses.length}
-                </p>
-                <p>
-                  <strong>Found Assessments:</strong>{" "}
-                  {assessmentsWithScores.length}
-                </p>
-                <p>
-                  <strong>Enrolled Class Codes:</strong>{" "}
-                  {enrolledClassCodes.join(", ") || "None"}
-                </p>
-                <p>
-                  <strong>Assessment Class Codes:</strong>{" "}
-                  {[...new Set(allAssessmentClassCodes)].join(", ") || "None"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </details>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-6">
           {/* Student Info Card */}
-          <div className="bg-white shadow-lg rounded-xl p-6">
+          <div className="bg-white shadow-lg rounded-xl p-4">
             <h2 className="text-2xl font-bold text-textMain mb-6">
               Student Information
             </h2>
@@ -342,10 +317,55 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
 
           {/* Assessments Table */}
-          <div className="bg-white shadow-lg rounded-xl p-6">
-            <h2 className="text-2xl font-bold text-textMain mb-6">
-              Your Assessments & Grades
-            </h2>
+          <div className="bg-white shadow-lg rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2 w-full">
+              {/* Left Title */}
+              <h2 className="text-2xl font-bold text-textMain">
+                Your Assessments & Grades
+              </h2>
+
+              {/* Right Grade Circle with Title */}
+              <div className="flex flex-col items-center w-20">
+                <div className="text-xs font-medium text-gray-600 mb-1">
+                  Final Grade
+                </div>
+                <div className="relative w-20 h-20">
+                  <svg viewBox="0 0 100 100" className="w-full h-full">
+                    {/* Background Circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="#E5E7EB" // Tailwind gray-200
+                      strokeWidth="8"
+                    />
+                    {/* Foreground Circle */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke={getGradeColor(calculateOverallGrade())}
+                      strokeWidth="8"
+                      strokeDasharray="264"
+                      strokeDashoffset={`${
+                        264 - (264 * calculateOverallGrade()) / 100
+                      }`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+
+                  {/* Grade Label */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    <div className="text-base font-bold text-gray-900 text-center leading-tight">
+                      {mapGradeDescriptor(calculateOverallGrade())}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {assessmentsWithScores.length > 0 ? (
               <div className="overflow-x-auto">
@@ -476,7 +496,7 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
 
           {/* Grade Calculator */}
-          <div className="bg-white shadow-lg rounded-xl p-6">
+          <div className="bg-white shadow-lg rounded-xl p-4">
             <h2 className="text-2xl font-bold text-textMain mb-2">
               Grade Calculator
             </h2>
@@ -603,10 +623,12 @@ const StudentDashboard = ({ onLogout }) => {
                         key={index}
                         className="border-l-4 border-redAccent pl-4 py-2"
                       >
-                        <p className="font-medium text-sm text-gray-600 mb-1">
-                          Class: {classCode}
-                        </p>
-                        <p className="text-textMain">{enroll.comment}</p>
+                        <div className="font-medium text-sm text-gray-600 mb-1">
+                          Class - {classCode}:{" "}
+                          <span className="text-lg italic text-red-600">
+                            “{enroll.comment}”
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -633,6 +655,92 @@ const StudentDashboard = ({ onLogout }) => {
                 </p>
               </div>
             )}
+          </div>
+          {/* Grading Reference */}
+          <div className="mt-6 bg-white shadow rounded-lg p-4 border-l-4 border-red-400">
+            <h3 className="font-bold text-red -800 mb-4">
+              📊 Grading Reference
+            </h3>
+            <div className="overflow-auto">
+              <table className="min-w-full text-sm text-left border border-gray-300 rounded">
+                <thead className="bg-red-100 text-red-800 font-semibold">
+                  <tr>
+                    <th className="px-4 py-2 border-b">Descriptor</th>
+                    <th className="px-4 py-2 border-b text-center">Grade</th>
+                    <th className="px-4 py-2 border-b text-center">Range</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {[
+                    ["Excellent", "1.00", "98 – 100"],
+                    ["Superior", "1.25", "94 – 97"],
+                    ["Very Good", "1.50", "90 – 93"],
+                    ["Good", "1.75", "88 – 89"],
+                    ["Meritorious", "2.00", "85 – 87"],
+                    ["Very Satisfactory", "2.25", "83 – 84"],
+                    ["Satisfactory", "2.50", "80 – 82"],
+                    ["Fairly Satisfactory", "2.75", "78 – 79"],
+                    ["Passing", "3.00", "75 – 77"],
+                    ["Failure", "5.00", "Below 70"],
+                    ["Incomplete", "INC", "—"],
+                  ].map(([desc, grade, range], i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-2">{desc}</td>
+                      <td className="px-4 py-2 text-center">{grade}</td>
+                      <td className="px-4 py-2 text-center">{range}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* Debug Information - Collapsible */}
+          <div className="bg-yellow-100 border-l-4 border-yellow-400 rounded-lg p-4 mb-6">
+            <details>
+              <summary className="font-medium text-yellow-800 cursor-pointer hover:text-yellow-900 transition">
+                🐛 Debug Information (Click to expand)
+              </summary>
+              <div className="text-sm text-yellow-700 space-y-2 mt-4 bg-white p-4 rounded">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p>
+                      <strong>User ID:</strong> {user.$id}
+                    </p>
+                    <p>
+                      <strong>Classes in DB:</strong>{" "}
+                      {data.classes?.length || 0}
+                    </p>
+                    <p>
+                      <strong>Assessments in DB:</strong>{" "}
+                      {data.assessments?.length || 0}
+                    </p>
+                    <p>
+                      <strong>Student's Enrollments:</strong>{" "}
+                      {studentEnrollments.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p>
+                      <strong>Enrolled Classes:</strong>{" "}
+                      {enrolledClasses.length}
+                    </p>
+                    <p>
+                      <strong>Found Assessments:</strong>{" "}
+                      {assessmentsWithScores.length}
+                    </p>
+                    <p>
+                      <strong>Enrolled Class Codes:</strong>{" "}
+                      {enrolledClassCodes.join(", ") || "None"}
+                    </p>
+                    <p>
+                      <strong>Assessment Class Codes:</strong>{" "}
+                      {[...new Set(allAssessmentClassCodes)].join(", ") ||
+                        "None"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
           {/* Raw Data Debug */}
           <div className="bg-red-100 border-l-4 border-redAccent rounded-lg p-4">

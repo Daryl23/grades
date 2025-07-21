@@ -11,7 +11,7 @@ const MainLayout = ({ user, onLogout, children }) => {
       {/* Sidebar */}
       <div
         className={`fixed z-40 inset-y-0 left-0 ${
-          isCollapsed ? "w-20" : "w-64"
+          isCollapsed ? "w-12" : "w-64"
         } bg-white shadow-lg transform transition-all duration-300 ease-in-out
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0 md:static md:sticky md:top-0 md:h-screen`}
@@ -19,7 +19,7 @@ const MainLayout = ({ user, onLogout, children }) => {
         <div className="flex flex-col h-full">
           {/* Collapse Toggle Button */}
           <div className="flex items-center justify-between px-4 py-1 border-b shadow-lg">
-            <div className="py-1">
+            <div className="py-2">
               <h2
                 className={`text-xl font-bold text-red-700 transition-all duration-300 ${
                   isCollapsed

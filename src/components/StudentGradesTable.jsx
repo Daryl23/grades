@@ -93,73 +93,75 @@ const StudentGradesTable = ({
                   return (
                     <td key={assessment.$id} className="text-center">
                       {isEditing ? (
-                        <input
-                          type="number"
-                          value={scoreInput}
-                          autoFocus
-                          min="0"
-                          max={assessment.maxScore}
-                          onChange={(e) => setScoreInput(e.target.value)}
-                          onBlur={() => {
-                            handleScoreSave(
-                              student.$id,
-                              assessment.$id,
-                              scoreInput
-                            );
-                            setEditingScore({
-                              studentId: null,
-                              assessmentId: null,
-                            });
-                            setSavedScore({
-                              studentId: student.$id,
-                              assessmentId: assessment.$id,
-                            });
-                            setTimeout(() => {
-                              setSavedScore({
-                                studentId: null,
-                                assessmentId: null,
-                              });
-                            }, 2000);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === "Tab") {
-                              e.preventDefault();
+                        <div className="w-full flex justify-center">
+                          <input
+                            type="number"
+                            value={scoreInput}
+                            autoFocus
+                            min="0"
+                            max={assessment.maxScore}
+                            onChange={(e) => setScoreInput(e.target.value)}
+                            onBlur={() => {
                               handleScoreSave(
                                 student.$id,
                                 assessment.$id,
                                 scoreInput
                               );
-                              const currentIdx = findScoreCellIndex(
-                                student.$id,
-                                assessment.$id
-                              ); // 🛠️ fixed from `assessment.name`
-                              const nextIdx = e.shiftKey
-                                ? currentIdx > 0
-                                  ? currentIdx - 1
-                                  : scoreCellPositions.length - 1
-                                : currentIdx < scoreCellPositions.length - 1
-                                ? currentIdx + 1
-                                : 0;
-                              const nextCell = scoreCellPositions[nextIdx];
-                              setTimeout(() => {
-                                setEditingScore(nextCell);
-                                setScoreInput(
-                                  getStudentScore(
-                                    nextCell.studentId,
-                                    nextCell.assessmentId
-                                  ) || ""
-                                );
-                              }, 0);
-                            } else if (e.key === "Escape") {
                               setEditingScore({
                                 studentId: null,
                                 assessmentId: null,
                               });
-                            }
-                          }}
-                          className="w-10 px-1 py-1 text-sm border rounded text-center"
-                          disabled={studentsLoading || assessmentsLoading}
-                        />
+                              setSavedScore({
+                                studentId: student.$id,
+                                assessmentId: assessment.$id,
+                              });
+                              setTimeout(() => {
+                                setSavedScore({
+                                  studentId: null,
+                                  assessmentId: null,
+                                });
+                              }, 2000);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                e.preventDefault();
+                                handleScoreSave(
+                                  student.$id,
+                                  assessment.$id,
+                                  scoreInput
+                                );
+                                const currentIdx = findScoreCellIndex(
+                                  student.$id,
+                                  assessment.$id
+                                ); // 🛠️ fixed from `assessment.name`
+                                const nextIdx = e.shiftKey
+                                  ? currentIdx > 0
+                                    ? currentIdx - 1
+                                    : scoreCellPositions.length - 1
+                                  : currentIdx < scoreCellPositions.length - 1
+                                  ? currentIdx + 1
+                                  : 0;
+                                const nextCell = scoreCellPositions[nextIdx];
+                                setTimeout(() => {
+                                  setEditingScore(nextCell);
+                                  setScoreInput(
+                                    getStudentScore(
+                                      nextCell.studentId,
+                                      nextCell.assessmentId
+                                    ) || ""
+                                  );
+                                }, 0);
+                              } else if (e.key === "Escape") {
+                                setEditingScore({
+                                  studentId: null,
+                                  assessmentId: null,
+                                });
+                              }
+                            }}
+                            className="w-4/5 px-2 py-1 text-sm border-gray-200 rounded text-center mx-auto"
+                            disabled={studentsLoading || assessmentsLoading}
+                          />
+                        </div>
                       ) : (
                         <div className="flex flex-col items-center">
                           <button
