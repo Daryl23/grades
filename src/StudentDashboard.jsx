@@ -1,246 +1,387 @@
-import { useState, useContext } from "react";
-import { calculateFinalGrade } from "./utils/calculateFinalGrade";
-import { AppContext } from "./App";
+import React, { useContext, useEffect, useState } from "react";
+import { AppContext } from "./AppContext";
+import { databases } from "./lib/appwrite";
+import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
+import InstructorHeader from "./components/InstructorHeader";
 
-const StudentDashboard = ({ user, onLogout }) => {
-  const { data } = useContext(AppContext);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    oldPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+const StudentDashboard = (onLogout) => {
+  const { data, user, getStudentAssessmentsWithScores } =
+    useContext(AppContext);
+  const [scores, setScores] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudentScores = async () => {
+      if (!user || user.role !== "student") {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const scoreRes = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.SCORES,
+          [`equal("studentId", "${user.$id}")`]
+        );
+        setScores(scoreRes.documents);
+      } catch (err) {
+        console.error("Error fetching scores:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudentScores();
+  }, [user]);
+
+  if (loading) return <div className="text-center mt-10">Loading...</div>;
+
+  if (!user)
+    return <div className="text-center mt-10">Student data not found.</div>;
+
+  // DETAILED DEBUGGING - Let's see what's happening step by step
+  console.log("=== DETAILED STUDENT DASHBOARD DEBUG ===");
+  console.log("1. User:", {
+    id: user.$id,
+    role: user.role,
+    name: `${user.firstName} ${user.lastName}`,
   });
 
-  const currentStudent = data.students.find((s) => s.name === user.name);
+  console.log("2. Raw Data Counts:");
+  console.log("   - Students:", data.students?.length || 0);
+  console.log("   - Classes:", data.classes?.length || 0);
+  console.log("   - Assessments:", data.assessments?.length || 0);
+  console.log("   - ClassEnrollments:", data.classEnrollments?.length || 0);
+  console.log("   - Scores:", scores.length);
 
-  const handleChangePassword = (e) => {
-    e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert("New passwords do not match!");
-      return;
-    }
-    if (passwordForm.oldPassword !== user.password) {
-      alert("Old password is incorrect!");
-      return;
-    }
-    alert("Password changed successfully!");
-    setShowChangePassword(false);
-    setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" });
+  // Step 1: Find student's enrollments
+  const studentEnrollments =
+    data.classEnrollments?.filter(
+      (enroll) => enroll.studentId?.$id === user.$id
+    ) || [];
+  console.log("3. Student's Enrollments:", studentEnrollments);
+  // Step 2: Find enrolled class IDs (extract $id from classId object)
+  const enrolledClassIds = studentEnrollments.map((enroll) => enroll.classId);
+  console.log("4. Enrolled Class IDs:", enrolledClassIds);
+
+  // Step 3: Match classes using those IDs
+  const enrolledClasses = data.classes.filter((cls) => enrolledClassIds.includes(cls.$id));
+
+  console.log(
+    "5. Enrolled Classes:",
+    enrolledClasses.map((cls) => ({
+      id: cls.$id,
+      classCode: cls.classCode,
+      title: cls.title || cls.name,
+    }))
+  );
+
+  // Step 4: Find assessments by classCode
+  const studentAssessments = [];
+  enrolledClasses.forEach((cls) => {
+    console.log(
+      `6. Looking for assessments with classCode: "${cls.classCode}"`
+    );
+
+    const classAssessments =
+      data.assessments?.filter(
+        (assessment) => assessment.classCode === cls.classCode
+      ) || [];
+
+    console.log(
+      `   - Found ${classAssessments.length} assessments:`,
+      classAssessments.map((a) => ({ name: a.name, classCode: a.classCode }))
+    );
+
+    classAssessments.forEach((assessment) => {
+      const scoreEntry = scores.find(
+        (s) => s.assessmentId === assessment.$id && s.studentId === user.$id
+      );
+
+      studentAssessments.push({
+        ...assessment,
+        className: cls.title || cls.name || cls.classCode,
+        scoreEntry,
+        hasScore: !!scoreEntry,
+        percentage:
+          scoreEntry &&
+          scoreEntry.score !== null &&
+          scoreEntry.score !== undefined
+            ? ((scoreEntry.score / assessment.maxScore) * 100).toFixed(1)
+            : null,
+      });
+    });
+  });
+
+  console.log("7. Final Student Assessments:", studentAssessments.length);
+  console.log(
+    "8. Assessment Details:",
+    studentAssessments.map((a) => ({
+      name: a.name,
+      classCode: a.classCode,
+      hasScore: a.hasScore,
+      score: a.scoreEntry?.score,
+    }))
+  );
+
+  // Let's also check if there's a mismatch in classCodes
+  const allClassCodes = data.classes?.map((c) => c.classCode) || [];
+  const allAssessmentClassCodes =
+    data.assessments?.map((a) => a.classCode) || [];
+  console.log("9. All Class Codes:", allClassCodes);
+  console.log("10. All Assessment Class Codes:", allAssessmentClassCodes);
+  console.log(
+    "11. Matching Class Codes:",
+    allClassCodes.filter((code) => allAssessmentClassCodes.includes(code))
+  );
+
+  console.log("=== END DEBUG ===");
+
+  // Use the helper function from AppContext (if available) or manual calculation
+  const assessmentsWithScores = getStudentAssessmentsWithScores
+    ? getStudentAssessmentsWithScores(user.$id)
+    : [];
+
+  // Calculate overall grade
+  const calculateOverallGrade = () => {
+    const gradedAssessments = assessmentsWithScores.filter(
+      (a) =>
+        a.hasScore &&
+        a.scoreEntry?.score !== null &&
+        a.scoreEntry?.score !== undefined
+    );
+
+    if (gradedAssessments.length === 0) return "N/A";
+
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+
+    gradedAssessments.forEach((assessment) => {
+      const percentage =
+        (assessment.scoreEntry.score / assessment.maxScore) * 100;
+      totalWeightedScore += percentage * (assessment.weight / 100);
+      totalWeight += assessment.weight / 100;
+    });
+
+    return totalWeight > 0
+      ? (totalWeightedScore / totalWeight).toFixed(2)
+      : "N/A";
   };
 
-  if (!currentStudent) {
-    return <div className="p-8 text-center">Student data not found.</div>;
-  }
-
-  if (showChangePassword) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Change Password
-              </h1>
-              <button
-                onClick={() => setShowChangePassword(false)}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white shadow rounded-2xl p-6">
-            <form onSubmit={handleChangePassword} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Old Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordForm.oldPassword}
-                  onChange={(e) =>
-                    setPasswordForm({
-                      ...passwordForm,
-                      oldPassword: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) =>
-                    setPasswordForm({
-                      ...passwordForm,
-                      newPassword: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) =>
-                    setPasswordForm({
-                      ...passwordForm,
-                      confirmPassword: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Change Password
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Get enrolled class codes for display
+  const enrolledClassCodes = enrolledClasses.map((cls) => cls.classCode);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Student Dashboard
-            </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {user.name}
-              </span>
-              <button
-                onClick={() => setShowChangePassword(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Change Password
-              </button>
-              <button
-                onClick={onLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+    <div className="max-w-4xl mx-auto p-4">
+  
+      <InstructorHeader user={`${user.firstName} ${user.lastName}`} onLogout={onLogout} />
+
+      {/* Debug Information */}
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <h4 className="font-medium text-yellow-800">Debug Information:</h4>
+        <div className="text-sm text-yellow-700 space-y-1">
+          <p>User ID: {user.$id}</p>
+          <p>Classes in DB: {data.classes?.length || 0}</p>
+          <p>Assessments in DB: {data.assessments?.length || 0}</p>
+          <p>
+            Student's Enrollments: {studentEnrollments.length}{" "}
+            {enrolledClassIds.join(", ")}
+          </p>
+
+          <p>Enrolled Classes: {enrolledClasses.length}</p>
+          <p>Found Assessments: {assessmentsWithScores.length}</p>
+          <p>Enrolled Class Codes: {enrolledClassCodes.join(", ") || "None"}</p>
+          <p>All Class Codes: {allClassCodes.join(", ") || "None"}</p>
+          <p>
+            Assessment Class Codes:{" "}
+            {[...new Set(allAssessmentClassCodes)].join(", ") || "None"}
+          </p>
+        </div>
+      </div>
+
+      {/* Student Info Card */}
+      <div className="bg-white shadow-md rounded p-4 mb-4">
+        <h3 className="text-xl font-semibold mb-2">Student Information</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p>
+              <strong>Email:</strong> {user.email}
+            </p>
+            <p>
+              <strong>Student ID:</strong> {user.srCode}
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>Enrolled Classes:</strong>{" "}
+              {enrolledClassCodes.join(", ") || "None"}
+            </p>
+            <p>
+              <strong>Overall Grade:</strong> {calculateOverallGrade()}%
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Grades Table */}
-        <div className="bg-white shadow rounded-2xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            My Grades
-          </h2>
+      {/* Show Raw Data for Debugging */}
+      <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+        <h4 className="font-medium text-red-800">Raw Data Check:</h4>
+        <div className="text-xs text-red-700 space-y-2">
+          <details>
+            <summary className="cursor-pointer">
+              Student Enrollments ({studentEnrollments.length})
+            </summary>
+            <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
+              {JSON.stringify(studentEnrollments, null, 2)}
+            </pre>
+          </details>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-900">
-                Final Grade:
-              </span>
-              <span className="text-2xl font-bold text-blue-600">
-                {calculateFinalGrade(currentStudent, data.assessments).toFixed(
-                  1
-                )}
-                %
-              </span>
-            </div>
-          </div>
+          <details>
+            <summary className="cursor-pointer">
+              Enrolled Classes ({enrolledClasses.length})
+            </summary>
+            <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
+              {JSON.stringify(enrolledClasses, null, 2)}
+            </pre>
+          </details>
 
+          <details>
+            <summary className="cursor-pointer">
+              All Assessments ({data.assessments?.length || 0})
+            </summary>
+            <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
+              {JSON.stringify(data.assessments?.slice(0, 3), null, 2)}
+              {data.assessments?.length > 3 && "... (showing first 3)"}
+            </pre>
+          </details>
+        </div>
+      </div>
+
+      {/* Assessments Table */}
+      <div className="bg-white shadow-md rounded p-4 mb-4">
+        <h3 className="text-xl font-semibold mb-2">
+          Your Assessments & Grades
+        </h3>
+
+        {assessmentsWithScores.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full table-auto">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                    Assessment
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                    Score
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                    Max Score
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                    Percentage
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                    Weight
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
-                    Weighted Score
-                  </th>
+            <table className="min-w-full table-auto border">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="border px-4 py-2 text-left">Assessment</th>
+                  <th className="border px-4 py-2 text-center">Score</th>
+                  <th className="border px-4 py-2 text-center">Max Score</th>
+                  <th className="border px-4 py-2 text-center">Weight (%)</th>
+                  <th className="border px-4 py-2 text-center">Percentage</th>
+                  <th className="border px-4 py-2 text-center">Class</th>
+                  <th className="border px-4 py-2 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {data.assessments.map((assessment) => {
-                  const score = currentStudent.scores[assessment.name];
-                  const percentage =
-                    score !== undefined
-                      ? ((score / assessment.maxScore) * 62.5 + 37.5).toFixed(1)
-                      : "-";
-                  const weightedScore = (
-                    percentage *
-                    (assessment.weight / 100)
-                  ).toFixed(2);
+              <tbody>
+                {assessmentsWithScores.map((assessment) => {
+                  const isGraded =
+                    assessment.hasScore &&
+                    assessment.score &&
+                    assessment.score.score !== null &&
+                    assessment.score.score !== undefined;
 
                   return (
-                    <tr key={assessment.name} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 font-medium text-gray-900">
-                        {assessment.name}
+                    <tr key={assessment.$id} className="hover:bg-gray-50">
+                      <td className="border px-4 py-2">{assessment.name}</td>
+                      <td className="border px-4 py-2 text-center">
+                        {isGraded ? assessment.score.score : "—"}
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        {score !== undefined ? score : "-"}
-                      </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="border px-4 py-2 text-center">
                         {assessment.maxScore}
                       </td>
-                      <td className="px-4 py-4 text-center">{percentage}%</td>
-                      <td className="px-4 py-4 text-center">
-                        {assessment.weight}%
+                      <td className="border px-4 py-2 text-center">
+                        {assessment.weight}
                       </td>
-                      <td className="px-4 py-4 text-center">{weightedScore}</td>
+                      <td className="border px-4 py-2 text-center font-medium">
+                        {assessment.percentage
+                          ? `${assessment.percentage}%`
+                          : "—"}
+                      </td>
+                      <td className="border px-4 py-2 text-center">
+                        {assessment.classCode}
+                      </td>
+                      <td className="border px-4 py-2 text-center">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            isGraded
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {isGraded ? "Graded" : "Pending"}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Comments Section */}
-        {currentStudent.comment && (
-          <div className="bg-white shadow rounded-2xl p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Instructor Comments
-            </h2>
-            <div className="bg-gray-50 p-4 rounded-lg text-gray-800">
-              {currentStudent.comment}
+        ) : (
+          <div className="text-center py-8">
+            <div className="text-gray-500 mb-4">
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <h4 className="text-lg font-medium text-gray-900 mb-2">
+              No Assessments Found
+            </h4>
+            <p className="text-gray-500 mb-4">
+              We couldn't find any assessments for your enrolled classes.
+            </p>
+            <div className="text-sm text-gray-400">
+              <p>Possible issues:</p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>No class enrollments found</li>
+                <li>Class codes don't match between classes and assessments</li>
+                <li>Assessments haven't been created yet</li>
+              </ul>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Instructor Comments */}
+      <div className="bg-white shadow-md rounded p-4">
+        <h3 className="text-xl font-semibold mb-2">Instructor Comments</h3>
+        {studentEnrollments.filter((enroll) => enroll.comment).length > 0 ? (
+          <div className="space-y-3">
+            {studentEnrollments
+              .filter((enroll) => enroll.comment)
+              .map((enroll, index) => {
+                const relatedClass = enrolledClasses.find(
+                  (cls) => cls.$id === enroll.classId
+                );
+                const classCode = relatedClass?.classCode || "Unknown";
+
+                return (
+                  <div key={index} className="border-l-4 border-blue-500 pl-4">
+                    <p className="font-medium text-sm text-gray-600">
+                      Class: {classCode}
+                    </p>
+                    <p className="text-gray-700">{enroll.comment}</p>
+                  </div>
+                );
+              })}
+          </div>
+        ) : (
+          <p className="text-gray-500">No comments yet.</p>
         )}
       </div>
     </div>

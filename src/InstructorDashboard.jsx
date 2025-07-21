@@ -1,91 +1,340 @@
-import React, { useState, useContext } from "react";
-import { Plus, Edit, Trash2, Save, X } from "lucide-react";
-import { AppContext } from "./App";
+import React, { useState, useEffect } from "react";
+import { useApp } from "./AppContext";
 import { calculateFinalGrade } from "./utils/calculateFinalGrade";
 import AssessmentModal from "./components/AssessmentModal";
-import ScoreModal from "./components/ScoreModal";
+import { databases, account } from "./lib/appwrite"; // adjust path as needed
+import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
+import StudentGradesTable from "./components/StudentGradesTable";
+import InstructorHeader from "./components/InstructorHeader";
+import AssessmentTasks from "./components/AssessmentTasks";
 
 const InstructorDashboard = ({ user, onLogout }) => {
-  const { data, setData } = useContext(AppContext);
+  const { data, setData } = useApp();
 
   const [assessmentModal, setAssessmentModal] = useState({
     isOpen: false,
     assessment: null,
   });
 
-  const [scoreModal, setScoreModal] = useState({
-    isOpen: false,
-    student: null,
-    assessment: null,
-    currentScore: "",
-  });
-
   const [editingComment, setEditingComment] = useState(null);
   const [commentText, setCommentText] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: "name", direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "name",
+    direction: "asc",
+  });
   const [studentModal, setStudentModal] = useState({ isOpen: false });
   const [newStudent, setNewStudent] = useState({ id: "", name: "" });
-  const [editingScore, setEditingScore] = useState({ studentId: null, assessmentName: null });
+  const [editingScore, setEditingScore] = useState({
+    studentId: null,
+    assessmentName: null,
+  });
   const [scoreInput, setScoreInput] = useState("");
-  const [savedScore, setSavedScore] = useState({ studentId: null, assessmentName: null });
+  const [savedScore, setSavedScore] = useState({
+    studentId: null,
+    assessmentName: null,
+  });
+  const [scores, setScores] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [assessmentsLoading, setAssessmentsLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    error: false,
+  });
+  const [selectedClassCode, setSelectedClassCode] = useState(null);
+
+  // Move ALL useEffect hooks to the top, before any conditional returns
+  useEffect(() => {
+    async function checkSessionAndFetch() {
+      try {
+        const user = await account.get();
+        console.log("✅ Logged in user:", user);
+      } catch (err) {
+        console.warn("⚠️ No user logged in:", err);
+      }
+
+      try {
+        console.log("📡 Fetching assessments...");
+        const res = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.ASSESSMENTS
+        );
+        console.log("📄 Assessments fetched:", res.documents);
+
+        setData((prev) => ({
+          ...prev,
+          assessments: res.documents || [],
+        }));
+        setAssessmentsLoading(false);
+      } catch (error) {
+        setAssessmentsLoading(false);
+        console.error("❌ Failed to fetch assessments from Appwrite:", error);
+      }
+
+      try {
+        console.log("📡 Fetching students...");
+        const res = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.STUDENTS
+        );
+        console.log("👨‍🎓 Students fetched:", res.documents);
+        setData((prev) => ({
+          ...prev,
+          students: res.documents || [],
+        }));
+        setStudentsLoading(false);
+      } catch (error) {
+        setStudentsLoading(false);
+        console.error("❌ Failed to fetch students from Appwrite:", error);
+      }
+
+      try {
+        console.log("📡 Fetching scores...");
+        const res = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.SCORES
+        );
+        console.log("🏅 Scores fetched:", res.documents);
+        setScores(res.documents || []);
+      } catch (error) {
+        console.error("❌ Failed to fetch scores from Appwrite:", error);
+      }
+    }
+
+    checkSessionAndFetch();
+  }, [setData]);
+
+  // Snackbar auto-hide
+  useEffect(() => {
+    if (snackbar.open) {
+      const timer = setTimeout(
+        () => setSnackbar({ open: false, message: "", error: false }),
+        3000
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [snackbar.open]);
+
+  // Debugging: Log relationships and data
+  useEffect(() => {
+    // Always call the effect, but only run the logic when conditions are met
+    if (selectedClassCode && data && data.classes && data.classEnrollments) {
+      const selectedClass = data.classes.find((cls) => cls.classCode === selectedClassCode);
+      console.log("=== INSTRUCTOR DASHBOARD DEBUG ===");
+      console.log("Selected Class Code:", selectedClassCode);
+      console.log("Selected Class:", selectedClass);
+      const enrollments = data.classEnrollments.filter((e) => e.classId === (selectedClass ? selectedClass.$id : undefined));
+      console.log("Enrollments for class:", enrollments);
+      const enrolledStudentIds = enrollments.map((e) => e.studentId);
+      console.log("Enrolled Student IDs:", enrolledStudentIds);
+      const enrolledStudents = data.students.filter((s) => enrolledStudentIds.includes(s.$id));
+      console.log("Enrolled Students:", enrolledStudents);
+      const classAssessments = data.assessments.filter((a) => a.classId === (selectedClass ? selectedClass.$id : undefined));
+      console.log("Assessments for class:", classAssessments);
+      const classAssessmentIds = classAssessments.map((a) => a.$id);
+      const classScores = scores.filter((score) => classAssessmentIds.includes(score.assessmentId));
+      console.log("Scores for class assessments:", classScores);
+      console.log("=== END DEBUG ===");
+    }
+  }, [selectedClassCode, data, scores]);
 
   // Add new assessment
-  const handleAddAssessment = (assessmentData) => {
-    setData((prev) => ({
-      ...prev,
-      assessments: [...prev.assessments, assessmentData],
-    }));
+  const handleAddAssessment = async (assessmentData) => {
+    try {
+      const res = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.ASSESSMENTS,
+        "unique()",
+        assessmentData
+      );
+      setData((prev) => ({
+        ...prev,
+        assessments: [...prev.assessments, res],
+      }));
+      setSnackbar({
+        open: true,
+        message: "Assessment added successfully!",
+        error: false,
+      });
+    } catch (error) {
+      console.error("Failed to add assessment:", error);
+      setSnackbar({
+        open: true,
+        message: "Failed to add assessment!",
+        error: true,
+      });
+    }
   };
 
   // Edit assessment
-  const handleEditAssessment = (assessmentData) => {
-    setData((prev) => ({
-      ...prev,
-      assessments: prev.assessments.map((a) =>
-        a.name === assessmentModal.assessment.name ? assessmentData : a
-      ),
-    }));
+  const handleEditAssessment = async (assessmentData) => {
+    try {
+      const { $id } = assessmentModal.assessment;
+      const res = await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.ASSESSMENTS,
+        $id,
+        assessmentData
+      );
+      setData((prev) => ({
+        ...prev,
+        assessments: prev.assessments.map((a) => (a.$id === $id ? res : a)),
+      }));
+      setSnackbar({
+        open: true,
+        message: "Assessment updated successfully!",
+        error: false,
+      });
+    } catch (error) {
+      console.error("Failed to edit assessment:", error);
+      setSnackbar({
+        open: true,
+        message: "Failed to update assessment!",
+        error: true,
+      });
+    }
   };
 
   // Delete assessment
-  const handleDeleteAssessment = (assessmentName) => {
-    setData((prev) => ({
-      ...prev,
-      assessments: prev.assessments.filter((a) => a.name !== assessmentName),
-      students: prev.students.map((s) => ({
-        ...s,
-        scores: Object.fromEntries(
-          Object.entries(s.scores).filter(([key]) => key !== assessmentName)
-        ),
-      })),
-    }));
+  const handleDeleteAssessment = async (assessmentId) => {
+    const assessment = data.assessments.find((a) => a.$id === assessmentId);
+    if (!assessment) return;
+
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        COLLECTIONS.ASSESSMENTS,
+        assessment.$id
+      );
+      
+      // Delete associated scores
+      const assessmentScores = scores.filter(s => s.assessmentId === assessmentId);
+      for (const score of assessmentScores) {
+        try {
+          await databases.deleteDocument(
+            DATABASE_ID,
+            COLLECTIONS.SCORES,
+            score.$id
+          );
+        } catch (error) {
+          console.error("Failed to delete score:", error);
+        }
+      }
+
+      setData((prev) => ({
+        ...prev,
+        assessments: prev.assessments.filter((a) => a.$id !== assessment.$id),
+      }));
+      
+      setScores(prev => prev.filter(s => s.assessmentId !== assessmentId));
+      
+      setSnackbar({
+        open: true,
+        message: "Assessment deleted successfully!",
+        error: false,
+      });
+    } catch (error) {
+      console.error("Failed to delete assessment:", error);
+      setSnackbar({
+        open: true,
+        message: "Failed to delete assessment!",
+        error: true,
+      });
+    }
   };
 
   // Save student score
-  const handleScoreSave = (studentId, assessmentName, score) => {
-    setData((prev) => ({
-      ...prev,
-      students: prev.students.map((s) =>
-        s.id === studentId
-          ? { ...s, scores: { ...s.scores, [assessmentName]: score } }
-          : s
-      ),
-    }));
+  const handleScoreSave = async (studentId, assessmentId, score) => {
+    if (studentsLoading || assessmentsLoading) return;
+    try {
+      const intScore = parseInt(score, 10);
+      if (isNaN(intScore)) return;
+
+      const existing = scores.find((s) => {
+        const sStudentId =
+          typeof s.studentId === "object" && s.studentId !== null
+            ? s.studentId.$id
+            : s.studentId;
+
+        const sAssessmentId =
+          typeof s.assessmentId === "object" && s.assessmentId !== null
+            ? s.assessmentId.$id
+            : s.assessmentId;
+
+        return sStudentId === studentId && sAssessmentId === assessmentId;
+      });
+
+      let res;
+      if (existing) {
+        // Update existing score
+        res = await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.SCORES,
+          existing.$id,
+          {
+            studentId: studentId,
+            assessmentId: assessmentId,
+            score: intScore,
+          }
+        );
+        setScores((prev) =>
+          prev.map((s) => (s.$id === existing.$id ? res : s))
+        );
+      } else {
+        // Create new score
+        res = await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.SCORES,
+          "unique()",
+          {
+            studentId: studentId,
+            assessmentId: assessmentId,
+            score: intScore,
+          }
+        );
+        setScores((prev) => [...prev, res]);
+      }
+
+      setEditingScore({ studentId: null, assessmentId: null });
+      setSavedScore({ studentId, assessmentId });
+      setTimeout(
+        () => setSavedScore({ studentId: null, assessmentId: null }),
+        2000
+      );
+    } catch (error) {
+      console.error("Failed to save score:", error);
+    }
   };
 
   // Save student comment
-  const handleCommentSave = (studentId, comment) => {
-    setData((prev) => ({
-      ...prev,
-      students: prev.students.map((s) =>
-        s.id === studentId ? { ...s, comment } : s
-      ),
-    }));
-    setEditingComment(null);
+  const handleCommentSave = async (studentId, comment) => {
+    try {
+      const student = data.students.find((s) => s.$id === studentId);
+      if (!student) return;
+
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.STUDENTS,
+        student.$id,
+        { comment }
+      );
+
+      setData((prev) => ({
+        ...prev,
+        students: prev.students.map((s) =>
+          s.$id === studentId ? { ...s, comment } : s
+        ),
+      }));
+
+      setEditingComment(null);
+      setCommentText("");
+    } catch (error) {
+      console.error("Failed to save comment:", error);
+    }
   };
 
   const startEditComment = (student) => {
-    setEditingComment(student.id);
+    setEditingComment(student.$id);
     setCommentText(student.comment || "");
   };
 
@@ -99,20 +348,77 @@ const InstructorDashboard = ({ user, onLogout }) => {
     });
   };
 
-  const sortedStudents = [...data.students].sort((a, b) => {
+  // Helper to get student score for a specific assessment
+    const getStudentScore = (studentId, assessmentId) => {
+      const score = scores.find((s) => {
+        const sStudentId = typeof s.studentId === "object" ? s.studentId?.$id : s.studentId;
+        const sAssessmentId = typeof s.assessmentId === "object" ? s.assessmentId?.$id : s.assessmentId;
+        const match = sStudentId === studentId && sAssessmentId === assessmentId;
+        if (match) {
+          console.log("✅ Score Match:", { sStudentId, sAssessmentId, score: s.score });
+        }
+        return match;
+      });
+      return score ? score.score : 0;
+    };
+
+  // Add new student
+  const handleAddStudent = async () => {
+    if (!newStudent.id.trim() || !newStudent.name.trim()) return;
+
+    try {
+      const res = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.STUDENTS,
+        newStudent.id,
+        { name: newStudent.name, comment: "" }
+      );
+      setData((prev) => ({
+        ...prev,
+        students: [...prev.students, res],
+      }));
+      setStudentModal({ isOpen: false });
+      setNewStudent({ id: "", name: "" });
+    } catch (error) {
+      console.error("Failed to add student:", error);
+    }
+  };
+
+  // Safety check for data - moved after all hooks
+  if (!data || !data.students || !data.assessments) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <span className="text-gray-500 text-sm">Loading...</span>
+      </div>
+    );
+  }
+
+  if (studentsLoading || assessmentsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <span className="text-gray-500 text-sm">
+          Loading students and assessments...
+        </span>
+      </div>
+    );
+  }
+
+  // Sort students
+  const sortedStudents = [...data.students].filter(Boolean).sort((a, b) => {
     const { key, direction } = sortConfig;
     let aValue, bValue;
 
     if (key === "name") {
-      aValue = a.name.toLowerCase();
-      bValue = b.name.toLowerCase();
+      aValue = `${a.lastName || ''}, ${a.firstName || ''}`.toLowerCase();
+      bValue = `${b.lastName || ''}, ${b.firstName || ''}`.toLowerCase();
     } else if (key === "final") {
-      aValue = calculateFinalGrade(a, data.assessments);
-      bValue = calculateFinalGrade(b, data.assessments);
+      // Calculate final grade based on scores and assessments
+      aValue = calculateFinalGrade(a, data.assessments, scores);
+      bValue = calculateFinalGrade(b, data.assessments, scores);
     } else {
-      // key is assessment name
-      aValue = Number(a.scores[key] || 0);
-      bValue = Number(b.scores[key] || 0);
+      // key is assessment ID
+      aValue = Number(getStudentScore(a.$id, key) || 0);
+      bValue = Number(getStudentScore(b.$id, key) || 0);
     }
 
     if (aValue < bValue) return direction === "asc" ? -1 : 1;
@@ -120,275 +426,74 @@ const InstructorDashboard = ({ user, onLogout }) => {
     return 0;
   });
 
-  // Add new student
-  const handleAddStudent = () => {
-    if (!newStudent.id.trim() || !newStudent.name.trim()) return;
-    setData((prev) => ({
-      ...prev,
-      students: [
-        ...prev.students,
-        { ...newStudent, scores: {}, comment: "" },
-      ],
-    }));
-    setStudentModal({ isOpen: false });
-    setNewStudent({ id: "", name: "" });
-  };
-
   // Helper: get all score cell positions
   const scoreCellPositions = [];
   data.students.forEach((student) => {
     data.assessments.forEach((assessment) => {
-      scoreCellPositions.push({ studentId: student.id, assessmentName: assessment.name });
+      scoreCellPositions.push({
+        studentId: student.$id,
+        assessmentId: assessment.$id,
+      });
     });
   });
 
-  const findScoreCellIndex = (studentId, assessmentName) =>
+  const findScoreCellIndex = (studentId, assessmentId) =>
     scoreCellPositions.findIndex(
-      (cell) => cell.studentId === studentId && cell.assessmentName === assessmentName
+      (cell) =>
+        cell.studentId === studentId && cell.assessmentId === assessmentId
     );
+
+  // Determine enrolled students for the selected class
+  const selectedClass = data.classes?.find((cls) => cls.classCode === selectedClassCode);
+  const enrollments = data.classEnrollments?.filter(
+    (e) => e.classId === (selectedClass ? selectedClass.$id : undefined)
+  ) || [];
+  const enrolledStudentIds = enrollments.map((e) => e.studentId);
+  const enrolledStudents = data.students.filter((s) => enrolledStudentIds.includes(s.$id));
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Instructor Dashboard
-            </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {user.name}
-              </span>
-              <button
-                onClick={onLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <InstructorHeader user={user} onLogout={onLogout} />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
-        <div className="flex flex-col lg:flex-row gap-4">
+      <div className="max-w-8xl mx-auto px-2 sm:px-2 lg:px-4 py-2">
+        <div className="flex flex-col lg:flex-row gap-2">
           {/* Student Grades Table - left */}
-          <div className="bg-white shadow rounded-2xl p-4 w-full lg:w-5/6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Student Grades
-              </h2>
-              <button
-                className="bg-blue-600 text-white px-2 py-1 rounded-lg hover:bg-green-700 transition-colors"
-                onClick={() => setStudentModal({ isOpen: true })}
-              >
-                + Add Student
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full table-auto">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">#</th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer"
-                      onClick={() => handleSort("name")}
-                    >
-                      Student
-                      {sortConfig.key === "name" && (sortConfig.direction === "asc" ? " ▲" : " ▼")}
-                    </th>
-                    {data.assessments.map((assessment) => (
-                      <th
-                        key={assessment.name}
-                        className="px-4 py-3 text-center text-sm font-medium text-gray-700 cursor-pointer"
-                        onClick={() => handleSort(assessment.name)}
-                      >
-                        {assessment.name}
-                        <div className="text-xs text-gray-500">
-                          /{assessment.maxScore}
-                        </div>
-                        {sortConfig.key === assessment.name &&
-                          (sortConfig.direction === "asc" ? " ▲" : " ▼")}
-                      </th>
-                    ))}
-                    <th
-                      className="px-4 py-3 text-center text-sm font-medium text-gray-700 cursor-pointer"
-                      onClick={() => handleSort("final")}
-                    >
-                      Final Grade
-                      {sortConfig.key === "final" && (sortConfig.direction === "asc" ? " ▲" : " ▼")}
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      Comment
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {sortedStudents.map((student, idx) => (
-                    <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 text-center text-gray-500">{idx + 1}</td>
-                      <td className="px-4 py-4 font-medium text-gray-900">
-                        {student.name}
-                      </td>
-                      {data.assessments.map((assessment) => (
-                        <td
-                          key={assessment.name}
-                          className="px-4 py-4 text-center"
-                        >
-                          {editingScore.studentId === student.id && editingScore.assessmentName === assessment.name ? (
-                            <input
-                              type="number"
-                              className="px-2 py-1 text-sm border border-blue-400 rounded w-20 text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={scoreInput}
-                              autoFocus
-                              min="0"
-                              max={assessment.maxScore}
-                              onChange={e => setScoreInput(e.target.value)}
-                              onBlur={() => {
-                                handleScoreSave(student.id, assessment.name, scoreInput);
-                                setEditingScore({ studentId: null, assessmentName: null });
-                                setSavedScore({ studentId: student.id, assessmentName: assessment.name });
-                                setTimeout(() => setSavedScore({ studentId: null, assessmentName: null }), 2000);
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === "Enter") {
-                                  handleScoreSave(student.id, assessment.name, scoreInput);
-                                  setEditingScore({ studentId: null, assessmentName: null });
-                                  setSavedScore({ studentId: student.id, assessmentName: assessment.name });
-                                  setTimeout(() => setSavedScore({ studentId: null, assessmentName: null }), 2000);
-                                } else if (e.key === "Escape") {
-                                  setEditingScore({ studentId: null, assessmentName: null });
-                                } else if (e.key === "Tab") {
-                                  e.preventDefault();
-                                  handleScoreSave(student.id, assessment.name, scoreInput);
-                                  const currentIdx = findScoreCellIndex(student.id, assessment.name);
-                                  let nextIdx;
-                                  if (e.shiftKey) {
-                                    nextIdx = currentIdx > 0 ? currentIdx - 1 : scoreCellPositions.length - 1;
-                                  } else {
-                                    nextIdx = currentIdx < scoreCellPositions.length - 1 ? currentIdx + 1 : 0;
-                                  }
-                                  const nextCell = scoreCellPositions[nextIdx];
-                                  setTimeout(() => {
-                                    setEditingScore(nextCell);
-                                    setScoreInput(
-                                      data.students.find((s) => s.id === nextCell.studentId).scores[nextCell.assessmentName] || ""
-                                    );
-                                  }, 0);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center">
-                              <button
-                                onClick={() => {
-                                  setEditingScore({ studentId: student.id, assessmentName: assessment.name });
-                                  setScoreInput(student.scores[assessment.name] || "");
-                                }}
-                                className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors w-20"
-                              >
-                                {student.scores[assessment.name] || "-"}
-                              </button>
-                              {savedScore.studentId === student.id && savedScore.assessmentName === assessment.name && (
-                                <span className="text-green-600 text-xs mt-1">Changes have been saved</span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-4 py-4 text-center font-medium">
-                        {calculateFinalGrade(student, data.assessments).toFixed(
-                          1
-                        )}
-                        %
-                      </td>
-                      <td className="px-4 py-4">
-                        {editingComment === student.id ? (
-                          <div className="flex space-x-2">
-                            <textarea
-                              value={commentText}
-                              onChange={(e) => setCommentText(e.target.value)}
-                              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded resize-none"
-                              rows="2"
-                            />
-                            <button
-                              onClick={() =>
-                                handleCommentSave(student.id, commentText)
-                              }
-                              className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors"
-                            >
-                              <Save size={14} />
-                            </button>
-                            <button
-                              onClick={() => setEditingComment(null)}
-                              className="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => startEditComment(student)}
-                            className="text-left text-sm text-gray-600 hover:text-gray-800 transition-colors"
-                          >
-                            {student.comment || "Click to add comment..."}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <StudentGradesTable
+            data={data}
+            sortedStudents={sortedStudents}
+            sortConfig={sortConfig}
+            handleSort={handleSort}
+            editingScore={editingScore}
+            setEditingScore={setEditingScore}
+            scoreInput={scoreInput}
+            setScoreInput={setScoreInput}
+            savedScore={savedScore}
+            setSavedScore={setSavedScore}
+            handleScoreSave={handleScoreSave}
+            findScoreCellIndex={findScoreCellIndex}
+            scoreCellPositions={scoreCellPositions}
+            studentsLoading={studentsLoading}
+            assessmentsLoading={assessmentsLoading}
+            editingComment={editingComment}
+            setEditingComment={setEditingComment}
+            commentText={commentText}
+            setCommentText={setCommentText}
+            handleCommentSave={handleCommentSave}
+            startEditComment={startEditComment}
+            calculateFinalGrade={calculateFinalGrade}
+            scores={scores}
+            getStudentScore={getStudentScore}
+            setStudentModal={setStudentModal}
+          />
+          
           {/* Assessment Tasks - right */}
-          <div className="bg-white shadow rounded-2xl p-4 w-full lg:w-1/7">
-            <div className="flex flex-col mb-4 gap-1">
-              <h2 className="text-xl font-semibold text-gray-900">Assessment Tasks</h2>
-              <button
-                onClick={() => setAssessmentModal({ isOpen: true, assessment: null })}
-                className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors self-start"
-                title="Add Assessment"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {data.assessments.map((assessment) => (
-                <div
-                  key={assessment.name}
-                  className="border border-gray-200 rounded-lg p-2"
-                >
-                  <h3 className="font-medium text-gray-900">{assessment.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    Max Score: {assessment.maxScore}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Weight: {assessment.weight}%
-                  </p>
-                  <div className="flex space-x-2 mt-2">
-                    <button
-                      onClick={() =>
-                        setAssessmentModal({ isOpen: true, assessment })
-                      }
-                      className="text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAssessment(assessment.name)}
-                      className="text-red-600 hover:text-red-800 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <AssessmentTasks
+            assessments={data.assessments}
+            setAssessmentModal={setAssessmentModal}
+            handleDeleteAssessment={handleDeleteAssessment}
+          />
         </div>
       </div>
 
@@ -406,42 +511,61 @@ const InstructorDashboard = ({ user, onLogout }) => {
 
       {/* Add Student Modal */}
       {studentModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold mb-4">Add Student</h3>
-            <div className="mb-3">
-              <label className="block text-sm mb-1">Student ID</label>
-              <input
-                type="text"
-                className="w-full border px-2 py-1 rounded"
-                value={newStudent.id}
-                onChange={(e) => setNewStudent((s) => ({ ...s, id: e.target.value }))}
-              />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold mb-4">Add New Student</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Student ID
+                </label>
+                <input
+                  type="text"
+                  value={newStudent.id}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter student ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Student Name
+                </label>
+                <input
+                  type="text"
+                  value={newStudent.name}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter student name"
+                />
+              </div>
             </div>
-            <div className="mb-3">
-              <label className="block text-sm mb-1">Name</label>
-              <input
-                type="text"
-                className="w-full border px-2 py-1 rounded"
-                value={newStudent.name}
-                onChange={(e) => setNewStudent((s) => ({ ...s, name: e.target.value }))}
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
+            <div className="flex gap-2 mt-6">
               <button
-                className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600"
+                onClick={handleAddStudent}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Add Student
+              </button>
+              <button
                 onClick={() => setStudentModal({ isOpen: false })}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
               >
                 Cancel
               </button>
-              <button
-                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                onClick={handleAddStudent}
-              >
-                Add
-              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Snackbar */}
+      {snackbar.open && (
+        <div
+          className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded shadow-lg z-50 transition-all ${
+            snackbar.error ? "bg-red-600" : "bg-green-600"
+          } text-white`}
+        >
+          {snackbar.message}
         </div>
       )}
     </div>

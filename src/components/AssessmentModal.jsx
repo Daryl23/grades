@@ -6,6 +6,7 @@ const AssessmentModal = ({ isOpen, onClose, onSave, assessment = null }) => {
     name: "",
     maxScore: "",
     weight: "",
+    classCode: "",
   });
 
   // Populate form if editing
@@ -15,6 +16,7 @@ const AssessmentModal = ({ isOpen, onClose, onSave, assessment = null }) => {
         name: assessment.name || "",
         maxScore: assessment.maxScore?.toString() || "",
         weight: assessment.weight?.toString() || "",
+        classCode: assessment.classCode || "",
       });
     }
   }, [assessment]);
@@ -30,12 +32,13 @@ const AssessmentModal = ({ isOpen, onClose, onSave, assessment = null }) => {
   };
 
   const handleSave = () => {
-    const { name, maxScore, weight } = formData;
-    if (name && maxScore && weight) {
+    const { name, maxScore, weight, classCode } = formData;
+    if (name && maxScore && weight && classCode) {
       onSave({
         name: name.trim(),
         maxScore: parseInt(maxScore),
         weight: parseInt(weight),
+        classCode: classCode.trim(),
       });
       onClose();
     }
@@ -99,6 +102,19 @@ const AssessmentModal = ({ isOpen, onClose, onSave, assessment = null }) => {
               placeholder="e.g., 30"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Class Code
+            </label>
+            <input
+              type="text"
+              value={formData.classCode}
+              onChange={(e) => handleInputChange("classCode", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="e.g., ABC123"
+            />
+          </div>
         </div>
 
         <div className="flex justify-end space-x-3 mt-6">
@@ -110,9 +126,9 @@ const AssessmentModal = ({ isOpen, onClose, onSave, assessment = null }) => {
           </button>
           <button
             onClick={handleSave}
-            disabled={!formData.name || !formData.maxScore || !formData.weight}
+            disabled={!formData.name || !formData.maxScore || !formData.weight || !formData.classCode}
             className={`px-4 py-2 rounded-lg transition-colors text-white ${
-              formData.name && formData.maxScore && formData.weight
+              formData.name && formData.maxScore && formData.weight && formData.classCode
                 ? "bg-blue-600 hover:bg-blue-700"
                 : "bg-gray-400 cursor-not-allowed"
             }`}
