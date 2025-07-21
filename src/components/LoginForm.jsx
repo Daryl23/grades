@@ -177,6 +177,27 @@ const LoginForm = () => {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const email = loginForm.email;
+    if (!email) {
+      alert("Please enter your email first.");
+      return;
+    }
+
+    try {
+      await account.createRecovery(
+        email,
+        "https://your-app.com/reset-password"
+      );
+      alert("Recovery email sent!");
+    } catch (error) {
+      console.error("Password recovery error:", error);
+      alert(
+        "Failed to send recovery email. Contact support if the issue persists."
+      );
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto p-4 mt-10">
       <h2 className="text-xl font-bold mb-4">Login</h2>
@@ -207,6 +228,15 @@ const LoginForm = () => {
             onChange={(e) => handleLoginChange("password", e.target.value)}
             required
           />
+          <div className="mt-1 text-sm text-right">
+            <button
+              type="button"
+              onClick={handleForgotPassword} // Define this function
+              className="text-blue-600 hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
         </div>
         <button
           type="submit"
