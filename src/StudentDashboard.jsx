@@ -4,62 +4,16 @@ import { databases } from "./lib/appwrite";
 import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
 import Header from "./components/Header";
 import MainLayout from "./components/MainLayout"; // adjust path as needed
-// import { calculateSampleGrade } from "./utils/calculateFinalGrade";
 import GradeCircle from "./components/GradeCircle"; // adjust path as needed
+import AssessmentsTable from "./components/AssessmentsTable"; // adjust path as needed
+import GradeCalculator from "./components/GradeCalculator";
+import SystemUpdate from "./components/SystemUpdateList";
 
 const StudentDashboard = ({ onLogout }) => {
   const { data, user, getStudentAssessmentsWithScores } =
     useContext(AppContext);
   const [scores, setScores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sampleScores, setSampleScores] = useState({});
-
-  // Calculate potential grade based on sample scores
-  const calculateSampleGrade = () => {
-    const assessments = data.assessments || [];
-    if (!assessments || assessments.length === 0) {
-      return "0.00";
-    }
-
-    let totalWeight = 0;
-    let weightedScoreSum = 0;
-
-    for (const assessment of assessments) {
-      const weight = assessment.weight || 0;
-      const max = assessment.maxScore || 1;
-      let sampleScore = sampleScores[assessment.$id];
-
-      // Treat missing/empty/NaN as 0
-      if (
-        sampleScore === undefined ||
-        sampleScore === null ||
-        sampleScore === "" ||
-        isNaN(sampleScore)
-      ) {
-        sampleScore = 0;
-      }
-
-      // Use the same scaling logic as your main table
-      let scaledScore = 37.5;
-      if (!isNaN(sampleScore)) {
-        scaledScore = (sampleScore / max) * 62.5 + 37.5;
-      }
-      weightedScoreSum += scaledScore * (weight / 100);
-      totalWeight += weight;
-    }
-
-    if (totalWeight === 0) return "0.00";
-
-    // Weighted average (already in percent)
-    return weightedScoreSum.toFixed(2);
-  };
-
-  const handleSampleScoreChange = (assessmentId, value) => {
-    setSampleScores((prev) => ({
-      ...prev,
-      [assessmentId]: value === "" ? null : Number(value),
-    }));
-  };
 
   useEffect(() => {
     const fetchStudentScores = async () => {
@@ -311,232 +265,11 @@ const StudentDashboard = ({ onLogout }) => {
               <GradeCircle grade={grade} />
             </div>
 
-            {assessmentsWithScores.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-                  <thead className="bg-red-800 text-white">
-                    <tr>
-                      <th className="border border-red-300 px-4 py-3 text-left font-medium">
-                        Assessment
-                      </th>
-                      <th className="border border-red-300 px-4 py-3 text-center font-medium">
-                        Score
-                      </th>
-                      <th className="border border-red-300 px-4 py-3 text-center font-medium">
-                        Max Score
-                      </th>
-                      <th className="border border-red-300 px-4 py-3 text-center font-medium">
-                        Weight (%)
-                      </th>
-                      <th className="border border-red-300 px-4 py-3 text-center font-medium">
-                        Scaled
-                      </th>
-                      <th className="border border-red-300 px-4 py-3 text-center font-medium">
-                        Weighted
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assessmentsWithScores.map((assessment, index) => {
-                      const isGraded =
-                        assessment.hasScore &&
-                        assessment.scoreEntry &&
-                        assessment.scoreEntry.score !== null &&
-                        assessment.scoreEntry.score !== undefined;
-
-                      const bgClass = index % 2 === 0 ? "bg-white" : "bg-cream";
-
-                      return (
-                        <tr
-                          key={assessment.$id}
-                          className={`${bgClass} hover:bg-greenAccent/20 transition`}
-                        >
-                          <td className="border border-gray-200 px-4 py-3 font-medium text-textMain">
-                            {assessment.name}
-                          </td>
-                          <td className="border border-gray-200 px-4 py-3 text-center">
-                            {isGraded ? (
-                              <span className="font-medium text-textMain">
-                                {assessment.scoreEntry.score}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="border border-gray-200 px-4 py-3 text-center text-textMain">
-                            {assessment.maxScore}
-                          </td>
-                          <td className="border border-gray-200 px-4 py-3 text-center text-textMain">
-                            {assessment.weight || 0}%
-                          </td>
-
-                          {(() => {
-                            const weight = assessment.weight || 0;
-                            const raw = assessment.scoreEntry?.score;
-                            const max = assessment.maxScore;
-
-                            let scaledScore = 37.5;
-                            if (isGraded && raw != null && max) {
-                              scaledScore = (raw / max) * 62.5 + 37.5;
-                            }
-
-                            const weighted = scaledScore * (weight / 100);
-
-                            return (
-                              <>
-                                <td className="border border-gray-200 px-4 py-3 text-center font-medium text-textMain">
-                                  {scaledScore.toFixed(2)}
-                                </td>
-                                <td className="border border-gray-200 px-4 py-3 text-center font-bold text-redAccent">
-                                  {weighted.toFixed(2)}%
-                                </td>
-                              </>
-                            );
-                          })()}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-6">
-                  <svg
-                    className="mx-auto h-16 w-16"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-textMain mb-3">
-                  No Assessments Found
-                </h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  We couldn't find any assessments for your enrolled classes.
-                  This could be due to several reasons.
-                </p>
-                <div className="bg-cream rounded-lg p-4 max-w-md mx-auto">
-                  <p className="text-sm font-medium text-textMain mb-2">
-                    Possible Issues:
-                  </p>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• No class enrollments found</li>
-                    <li>
-                      • Class codes don't match between classes and assessments
-                    </li>
-                    <li>• Assessments haven't been created yet</li>
-                  </ul>
-                </div>
-              </div>
-            )}
+            <AssessmentsTable assessmentsWithScores={assessmentsWithScores} />
           </div>
 
           {/* Grade Calculator */}
-          <div className="bg-white shadow-lg rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2 w-full">
-              <h2 className="text-2xl font-bold text-textMain mb-2">
-                Grade Calculator
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Input sample scores to see your potential final grade.
-              </p>
-
-              {/* Potential Grade Display */}
-              {/* Right Grade Circle with Title */}
-              <GradeCircle
-                grade={calculateSampleGrade()}
-                label="Potential Final Grade"
-              />
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-                <thead className="bg-green-300 text-black">
-                  <tr>
-                    <th className="border border-green-300 px-4 py-3 text-left font-medium">
-                      Assessment
-                    </th>
-                    <th className="border border-green-300 px-4 py-3 text-center font-medium">
-                      Sample Score
-                    </th>
-                    <th className="border border-green-300 px-4 py-3 text-center font-medium">
-                      Max Score
-                    </th>
-                    <th className="border border-green-300 px-4 py-3 text-center font-medium">
-                      Weight (%)
-                    </th>
-                    <th className="border border-green-300 px-4 py-3 text-center font-medium">
-                      Scaled
-                    </th>
-                    <th className="border border-green-300 px-4 py-3 text-center font-medium">
-                      Weighted
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assessmentsWithScores.map((assessment, index) => {
-                    const sampleScore = sampleScores[assessment.$id];
-                    const weight = assessment.weight || 0;
-                    const max = assessment.maxScore || 1;
-
-                    // Default to 37.5 if no valid sampleScore
-                    let scaledScore = 37.5;
-                    if (sampleScore !== "" && !isNaN(sampleScore)) {
-                      scaledScore = (sampleScore / max) * 62.5 + 37.5;
-                    }
-
-                    const weightedScore = scaledScore * (weight / 100);
-                    const bgClass = index % 2 === 0 ? "bg-white" : "bg-cream";
-
-                    return (
-                      <tr
-                        key={assessment.$id}
-                        className={`${bgClass} hover:bg-greenAccent/10 transition`}
-                      >
-                        <td className="border border-gray-200 px-4 py-3 font-medium text-textMain">
-                          {assessment.name}
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3">
-                          <input
-                            type="number"
-                            className="w-20 text-center border border-gray-300 rounded-lg py-1 px-2 focus:border-redAccent focus:outline-none transition"
-                            value={sampleScore ?? ""}
-                            onChange={(e) =>
-                              handleSampleScoreChange(
-                                assessment.$id,
-                                e.target.value
-                              )
-                            }
-                            placeholder={assessment.score?.score ?? "0"}
-                          />
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-center text-textMain">
-                          {assessment.maxScore}
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-center text-textMain">
-                          {assessment.weight}%
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-center font-medium text-textMain">
-                          {scaledScore.toFixed(2)}%
-                        </td>
-                        <td className="border border-gray-200 px-4 py-3 text-center font-bold text-redAccent">
-                          {weightedScore.toFixed(2)}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <GradeCalculator assessmentsWithScores={assessmentsWithScores} />
         </div>
 
         {/* Right Sidebar */}
@@ -599,6 +332,7 @@ const StudentDashboard = ({ onLogout }) => {
               </div>
             )}
           </div>
+
           {/* Grading Reference */}
           <div className="mt-6 bg-white shadow rounded-lg p-4 border-l-4 border-red-400">
             <h3 className="font-bold text-red -800 mb-4">
@@ -637,6 +371,7 @@ const StudentDashboard = ({ onLogout }) => {
               </table>
             </div>
           </div>
+
           {/* Debug Information - Collapsible */}
           <div className="bg-yellow-100 border-l-4 border-yellow-400 rounded-lg p-4 mb-6">
             <details>
@@ -723,79 +458,7 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
 
           {/* System Update Tasks */}
-          <div className="bg-red-100 border-l-4 border-red-400 rounded-lg p-4">
-            <h3 className="font-bold text-yellow-800 mb-4">
-              🛠️ System Update Tasks
-            </h3>
-
-            <div className="space-y-3 text-sm text-gray-800">
-              {/* Fix */}
-              <details className="group">
-                <summary className="cursor-pointer font-semibold text-yellow-700 hover:text-yellow-800 transition">
-                  🔧 Fix ({["Fix potential grade", "Fix profile layout"].length}
-                  )
-                </summary>
-                <div className="mt-2 ml-4 list-disc list-inside space-y-1">
-                  <li>Fix potential grade miscalculation</li>
-                  <li>Fix profile modal layout</li>
-                </div>
-              </details>
-
-              {/* Add */}
-              <details className="group">
-                <summary className="cursor-pointer font-semibold text-yellow-700 hover:text-yellow-800 transition">
-                  ➕ Add (
-                  {
-                    [
-                      "Working navigation links",
-                      "Footer",
-                      "Activity history",
-                      "Session logs",
-                      "Reporting tools",
-                    ].length
-                  }
-                  )
-                </summary>
-                <div className="mt-2 ml-4 list-disc list-inside space-y-1">
-                  <li>Add working navigation links</li>
-                  <li>Add footer (if necessary)</li>
-                  <li>Add activity history tracker</li>
-                  <li>Add session logs</li>
-                  <li>Add reporting and analytics</li>
-                </div>
-              </details>
-
-              {/* Modify */}
-              <details className="group">
-                <summary className="cursor-pointer font-semibold text-yellow-700 hover:text-yellow-800 transition">
-                  ✏️ Modify (
-                  {
-                    ["Class selection", "Enroll class", "Assessment flow"]
-                      .length
-                  }
-                  )
-                </summary>
-                <div className="mt-2 ml-4 list-disc list-inside space-y-1">
-                  <li>Enhance class selection UI</li>
-                  <li>Improve enroll class workflow</li>
-                  <li>Refine assessment feature UX</li>
-                </div>
-              </details>
-
-              {/* Other Suggestions */}
-              <details className="group">
-                <summary className="cursor-pointer font-semibold text-yellow-700 hover:text-yellow-800 transition">
-                  💡 Others (
-                  {["Organize records", "Export/import", "Audit log"].length})
-                </summary>
-                <div className="mt-2 ml-4 list-disc list-inside space-y-1">
-                  <li>Organize records by class and term</li>
-                  <li>Export/import options for reports</li>
-                  <li>Implement audit log for admin actions</li>
-                </div>
-              </details>
-            </div>
-          </div>
+          <SystemUpdate />
         </div>
       </div>
     </MainLayout>
