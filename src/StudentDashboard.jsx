@@ -5,6 +5,7 @@ import { DATABASE_ID, COLLECTIONS } from "./lib/constants";
 import Header from "./components/Header";
 import MainLayout from "./components/MainLayout"; // adjust path as needed
 // import { calculateSampleGrade } from "./utils/calculateFinalGrade";
+import GradeCircle from "./components/GradeCircle"; // adjust path as needed
 
 const StudentDashboard = ({ onLogout }) => {
   const { data, user, getStudentAssessmentsWithScores } =
@@ -16,36 +17,41 @@ const StudentDashboard = ({ onLogout }) => {
   // Calculate potential grade based on sample scores
   const calculateSampleGrade = () => {
     const assessments = data.assessments || [];
-    if (
-      !scores ||
-      !assessments ||
-      scores.length === 0 ||
-      assessments.length === 0
-    ) {
+    if (!assessments || assessments.length === 0) {
       return "0.00";
     }
 
     let totalWeight = 0;
     let weightedScoreSum = 0;
 
-    for (const score of scores) {
-      const assessment = assessments.find(
-        (a) => a.$id === score.assessmentId?.$id || score.assessmentId
-      );
+    for (const assessment of assessments) {
+      const weight = assessment.weight || 0;
+      const max = assessment.maxScore || 1;
+      let sampleScore = sampleScores[assessment.$id];
 
-      if (assessment && assessment.weight) {
-        const numericScore = parseFloat(score.value); // Ensure it's numeric
-        if (!isNaN(numericScore)) {
-          weightedScoreSum += numericScore * (assessment.weight / 100);
-          totalWeight += assessment.weight;
-        }
+      // Treat missing/empty/NaN as 0
+      if (
+        sampleScore === undefined ||
+        sampleScore === null ||
+        sampleScore === "" ||
+        isNaN(sampleScore)
+      ) {
+        sampleScore = 0;
       }
+
+      // Use the same scaling logic as your main table
+      let scaledScore = 37.5;
+      if (!isNaN(sampleScore)) {
+        scaledScore = (sampleScore / max) * 62.5 + 37.5;
+      }
+      weightedScoreSum += scaledScore * (weight / 100);
+      totalWeight += weight;
     }
 
     if (totalWeight === 0) return "0.00";
 
-    const grade = (weightedScoreSum / totalWeight) * 100;
-    return grade.toFixed(2);
+    // Weighted average (already in percent)
+    return weightedScoreSum.toFixed(2);
   };
 
   const handleSampleScoreChange = (assessmentId, value) => {
@@ -208,54 +214,39 @@ const StudentDashboard = ({ onLogout }) => {
 
   // Calculate overall grade
   const calculateOverallGrade = () => {
-    if (!assessmentsWithScores || assessmentsWithScores.length === 0)
-      return "N/A";
+    if (!assessmentsWithScores || assessmentsWithScores.length === 0) {
+      return null; // Return null instead of "N/A"
+    }
 
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
     assessmentsWithScores.forEach((assessment) => {
-      const score = assessment?.scoreEntry?.score ?? 0; // Treat null/undefined as 0
+      const raw = assessment?.scoreEntry?.score;
       const maxScore = assessment?.maxScore || 0;
       const weight = assessment?.weight || 0;
 
-      // Avoid invalid calculations
       if (maxScore > 0 && weight > 0) {
-        const percentage = (score / maxScore) * 100;
-        totalWeightedScore += percentage * (weight / 100);
+        let scaledScore = 37.5;
+        if (raw != null && !isNaN(raw)) {
+          scaledScore = (raw / maxScore) * 62.5 + 37.5;
+        }
+        totalWeightedScore += scaledScore * (weight / 100);
         totalWeight += weight / 100;
       }
     });
 
-    return totalWeight > 0
-      ? (totalWeightedScore / totalWeight).toFixed(2)
-      : "N/A";
+    return totalWeight > 0 ? totalWeightedScore / totalWeight : null; // Return number or null
   };
+
+  const gradeResult = calculateOverallGrade();
+  const grade =
+    gradeResult !== null && typeof gradeResult === "number"
+      ? gradeResult.toFixed(2)
+      : "N/A";
 
   // Get enrolled class codes for display
   const enrolledClassCodes = enrolledClasses.map((cls) => cls.classCode);
-
-  const getGradeColor = (grade) => {
-    if (grade < 70) return "#000000"; // Failure - Black
-    if (grade < 75) return "#EF4444"; // Borderline fail - Red (tailwind red-500)
-    if (grade < 83) return "#F59E0B"; // Satisfactory to Good - Yellow (amber-500)
-    if (grade < 90) return "#FACC15"; // Very Good - Yellow (yellow-400)
-    return "#10B981"; // Excellent & Superior - Green (emerald-500)
-  };
-
-  const mapGradeDescriptor = (percent) => {
-    if (percent >= 98) return "1";
-    if (percent >= 94) return "1.25";
-    if (percent >= 90) return "1.50";
-    if (percent >= 88) return "1.75";
-    if (percent >= 85) return "2.00";
-    if (percent >= 83) return "2.25";
-    if (percent >= 80) return "2.50";
-    if (percent >= 78) return "2.75";
-    if (percent >= 75) return "3.00";
-    if (percent < 70) return "5.00";
-    return "Incomplete";
-  };
 
   return (
     <MainLayout user={user} onLogout={onLogout}>
@@ -304,14 +295,6 @@ const StudentDashboard = ({ onLogout }) => {
                     )}
                   </p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">
-                    Current Grade
-                  </label>
-                  <p className="text-2xl font-bold text-redAccent">
-                    {calculateOverallGrade()}%
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -325,46 +308,7 @@ const StudentDashboard = ({ onLogout }) => {
               </h2>
 
               {/* Right Grade Circle with Title */}
-              <div className="flex flex-col items-center w-20">
-                <div className="text-xs font-medium text-gray-600 mb-1">
-                  Final Grade
-                </div>
-                <div className="relative w-20 h-20">
-                  <svg viewBox="0 0 100 100" className="w-full h-full">
-                    {/* Background Circle */}
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="#E5E7EB" // Tailwind gray-200
-                      strokeWidth="8"
-                    />
-                    {/* Foreground Circle */}
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke={getGradeColor(calculateOverallGrade())}
-                      strokeWidth="8"
-                      strokeDasharray="264"
-                      strokeDashoffset={`${
-                        264 - (264 * calculateOverallGrade()) / 100
-                      }`}
-                      strokeLinecap="round"
-                      transform="rotate(-90 50 50)"
-                    />
-                  </svg>
-
-                  {/* Grade Label */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <div className="text-base font-bold text-gray-900 text-center leading-tight">
-                      {mapGradeDescriptor(calculateOverallGrade())}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <GradeCircle grade={grade} />
             </div>
 
             {assessmentsWithScores.length > 0 ? (
@@ -497,21 +441,20 @@ const StudentDashboard = ({ onLogout }) => {
 
           {/* Grade Calculator */}
           <div className="bg-white shadow-lg rounded-xl p-4">
-            <h2 className="text-2xl font-bold text-textMain mb-2">
-              Grade Calculator
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Input sample scores to see your potential final grade.
-            </p>
+            <div className="flex items-center justify-between mb-2 w-full">
+              <h2 className="text-2xl font-bold text-textMain mb-2">
+                Grade Calculator
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Input sample scores to see your potential final grade.
+              </p>
 
-            {/* Potential Grade Display */}
-            <div className="bg-greenAccent/30 border-l-4 border-greenAccent rounded-lg p-4 mb-6">
-              <h3 className="text-xl font-bold text-textMain">
-                Potential Final Grade:{" "}
-                <span className="text-redAccent">
-                  {calculateSampleGrade()}%
-                </span>
-              </h3>
+              {/* Potential Grade Display */}
+              {/* Right Grade Circle with Title */}
+              <GradeCircle
+                grade={calculateSampleGrade()}
+                label="Potential Final Grade"
+              />
             </div>
 
             <div className="overflow-x-auto">
